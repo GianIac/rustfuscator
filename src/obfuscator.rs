@@ -1,4 +1,4 @@
-/// Macro per offuscare una stringa literal a compile-time.
+/// Macro to obfuscate a string literal at compile-time.
 #[macro_export]
 macro_rules! obfuscate_string {
     ($s:literal) => {

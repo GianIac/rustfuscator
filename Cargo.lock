@@ -108,6 +108,7 @@ name = "rust_code_obfuscator"
 version = "0.1.0"
 dependencies = [
  "cryptify",
+ "rand",
 ]
 
 [[package]]
