@@ -11,3 +11,4 @@ Features:
 - Built in Rust, for Rust... :)
 
 
+Feel free to use it, modify it, and improve it.
