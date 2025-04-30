@@ -1,0 +1,14 @@
+[package]
+name = "rust_code_obfuscator"
+version = "0.1.0"
+edition = "2024"
+description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
+license = "MIT"
+#repository = "https://github.com/tuo_nome_github/rust_code_obfuscator"
+categories = ["cryptography", "development-tools"]
+
+[features]
+obfuscation = []
+
+[dependencies]
+cryptify = "3.1.1"
