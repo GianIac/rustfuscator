@@ -1,0 +1,15 @@
+[package]
+name = "obfuscator_derive"
+version = "0.2.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+aes-gcm = "0.10"              
+rand = "0.8"                  
+generic-array = "0.14"       

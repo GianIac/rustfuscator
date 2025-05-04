@@ -1,6 +1,6 @@
 [package]
 name = "rust_code_obfuscator"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
 license = "MIT"
@@ -13,3 +13,8 @@ obfuscation = []
 [dependencies]
 cryptify = "3.1.1"
 rand = "0.8"
+obfuscator_derive = { path = "obfuscator_derive" }
+
+aes-gcm = "0.10"
+aes = "0.8"
+aead = "0.5"
