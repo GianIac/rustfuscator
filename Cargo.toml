@@ -7,14 +7,20 @@ license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
 categories = ["cryptography", "development-tools"]
 
+[workspace]
+members = [
+    ".",                   
+    "obfuscator_derive",  
+    "obfuscator_cli"      
+]
+
 [features]
 obfuscation = []
 
 [dependencies]
 cryptify = "3.1.1"
 rand = "0.8"
-obfuscator_derive = { path = "obfuscator_derive" }
-
 aes-gcm = "0.10"
 aes = "0.8"
 aead = "0.5"
+obfuscator_derive = { path = "obfuscator_derive" }
