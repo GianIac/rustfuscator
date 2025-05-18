@@ -8,3 +8,7 @@ clap = { version = "4", features = ["derive"] }
 walkdir = "2"
 regex = "1"
 anyhow = "1"
+
+syn = { version = "2", features = ["full", "visit-mut"] }
+quote = "1"
+proc-macro2 = "1"
