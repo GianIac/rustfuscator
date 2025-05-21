@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::fs;
 use syn::{
-    parse_file, visit_mut::{VisitMut}, Expr, ExprLit, Lit,
+    parse_file, visit_mut::VisitMut, Expr, ExprLit, Lit,
     ExprIf, ExprMatch, ExprLoop, ExprWhile, ExprForLoop, Stmt,
 };
 use quote::{quote, quote_spanned};

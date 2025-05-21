@@ -12,3 +12,5 @@ anyhow = "1"
 syn = { version = "2", features = ["full", "visit-mut"] }
 quote = "1"
 proc-macro2 = "1"
+fs_extra = "1.2"
+toml_edit = "0.20"

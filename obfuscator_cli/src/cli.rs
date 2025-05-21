@@ -11,4 +11,8 @@ pub struct Cli {
     /// output
     #[arg(short, long)]
     pub output: PathBuf,
+
+    /// obfuscate as full project
+    #[arg(long, default_value_t = false)]
+    pub as_project: bool,
 }

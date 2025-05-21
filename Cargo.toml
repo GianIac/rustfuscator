@@ -12,7 +12,7 @@ members = [
     ".",                   
     "obfuscator_derive",  
     "obfuscator_cli"      
-]
+, "test_inputs/test_inputs/example_proj"]
 
 [features]
 obfuscation = []
