@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     }
 
     if args.as_project {
-        project_mode::process_project(&args.input, &args.output)?;
+        project_mode::process_project(&args.input, &args.output, args.format)?;
     } else {
         if !args.output.exists() {
             fs::create_dir_all(&args.output)?;

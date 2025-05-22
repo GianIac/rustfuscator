@@ -5,14 +5,26 @@ edition = "2024"
 description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
-categories = ["cryptography", "development-tools"]
+categories = ["obfuscation", "development-tools","macros", "security"]
+
+keywords = [
+    "obfuscation",
+    "macros",
+    "security",
+    "code-protection",
+    "string-encryption",
+    "control-flow",
+    "compiler-plugin",
+    "cli",
+    "rust-tools"
+]
 
 [workspace]
 members = [
     ".",                   
     "obfuscator_derive",  
-    "obfuscator_cli"      
-, "test_inputs/test_inputs/example_proj"]
+    "obfuscator_cli",
+]
 
 [features]
 obfuscation = []

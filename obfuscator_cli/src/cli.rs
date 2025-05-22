@@ -15,4 +15,8 @@ pub struct Cli {
     /// obfuscate as full project
     #[arg(long, default_value_t = false)]
     pub as_project: bool,
+
+    /// format output files with rustfmt
+    #[arg(long, default_value_t = false)]
+    pub format: bool,
 }
