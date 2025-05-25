@@ -14,3 +14,8 @@ quote = "1"
 proc-macro2 = "1"
 fs_extra = "1.2"
 toml_edit = "0.20"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+globset = "0.4"
+
+rust_code_obfuscator = { path = "../" }

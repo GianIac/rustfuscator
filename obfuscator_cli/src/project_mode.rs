@@ -4,12 +4,13 @@ use std::path::Path;
 use walkdir::WalkDir;
 use toml_edit::{Document, Item, Table, value};
 
+use crate::config::ObfuscateConfig;
 use crate::file_io::write_transformed;
 use crate::processor::process_file;
 
-pub fn process_project(input: &Path, output: &Path, apply_format: bool) -> Result<()> {
+pub fn process_project(input: &Path, output: &Path, apply_format: bool, config: &ObfuscateConfig) -> Result<()> {
     copy_full_structure(input, output)?;
-    transform_rust_files(output)?;
+    transform_rust_files(output, config)?;
     patch_cargo_toml(output)?;
 
     if apply_format {
@@ -32,14 +33,15 @@ fn copy_full_structure(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn transform_rust_files(project_root: &Path) -> Result<()> {
+fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig) -> Result<()> {
     for entry in WalkDir::new(project_root)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
     {
         let file_path = entry.path();
-        let transformed = process_file(file_path)?;
+        let relative = file_path.strip_prefix(project_root)?;
+        let transformed = process_file(file_path, relative, config)?;
         write_transformed(file_path, &transformed)?;
     }
     Ok(())

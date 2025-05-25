@@ -9,8 +9,8 @@ pub struct Cli {
     pub input: PathBuf,
 
     /// output
-    #[arg(short, long)]
-    pub output: PathBuf,
+    #[arg(short, long, required_unless_present = "init")]
+    pub output: Option<PathBuf>,
 
     /// obfuscate as full project
     #[arg(long, default_value_t = false)]
@@ -19,4 +19,8 @@ pub struct Cli {
     /// format output files with rustfmt
     #[arg(long, default_value_t = false)]
     pub format: bool,
+
+    /// Generate a default .obfuscate.toml file
+    #[arg(long, default_value_t = false)]
+    pub init: bool,
 }
