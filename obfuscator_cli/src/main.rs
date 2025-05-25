@@ -18,7 +18,6 @@ fn main() -> Result<()> {
         bail!("Input path '{}' does not exist.", args.input.display());
     }
 
-    // --init mode: generate .obfuscate.toml and exit
     if args.init {
         generate_default_config(&args.input)?;
         println!("Generated default .obfuscate.toml");
@@ -39,7 +38,7 @@ fn main() -> Result<()> {
     println!("Loading config from: {}", config_path.display());
     let config_str = fs::read_to_string(&config_path)?;
     let config: ObfuscateConfig = toml::from_str(&config_str)?;
-    dbg!(&config); // 🔍 MOSTRA IL CONFIG CARICATO
+    dbg!(&config);
 
     if args.as_project {
         println!("Running in project mode...");
