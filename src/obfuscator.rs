@@ -1,4 +1,3 @@
-/// Macro to obfuscate a string literal at compile-time.
 #[macro_export]
 macro_rules! obfuscate_string {
     ($s:literal) => {
@@ -6,7 +5,6 @@ macro_rules! obfuscate_string {
     };
 }
 
-/// Macro per obfuscation del control-flow.
 #[macro_export]
 macro_rules! obfuscate_flow {
     () => {
