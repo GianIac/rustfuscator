@@ -18,4 +18,4 @@ toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 globset = "0.4"
 
-rust_code_obfuscator = { path = "../" }
+# rust_code_obfuscator = { path = "../" }
