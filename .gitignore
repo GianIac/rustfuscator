@@ -1,1 +1,33 @@
+# Build output
 /target
+
+# Executables and binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDEs and editors
+.idea/
+.vscode/
+*.sw?
+*.suo
+*.user
+*.RSUSER
+*.ncb
+*.VC.db
+*.VC.opendb
+
+# MacOS
+.DS_Store
+
+# Logs
+*.log
+
+# Coverage
+/coverage/
+*.lcov
+
+# Obfuscator output
+/test_outputs/
+out/

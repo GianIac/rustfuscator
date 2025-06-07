@@ -1,6 +1,5 @@
-mod obfuscator;
-mod errors;
-mod utils;
-
-pub use utils::generate_obf_suffix;
-pub use errors::ObfuscatorError;
+pub mod crypto;
+pub mod errors;
+pub mod obfuscator;
+pub mod utils;
+pub use obfuscator_derive::Obfuscate;

@@ -1,0 +1,21 @@
+[package]
+name = "obfuscator_cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+walkdir = "2"
+regex = "1"
+anyhow = "1"
+
+syn = { version = "2", features = ["full", "visit-mut"] }
+quote = "1"
+proc-macro2 = "1"
+fs_extra = "1.2"
+toml_edit = "0.20"
+toml = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+globset = "0.4"
+
+rust_code_obfuscator = { path = "../" }
