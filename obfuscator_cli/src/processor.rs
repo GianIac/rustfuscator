@@ -21,7 +21,6 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
     let file_name = relative_path.to_string_lossy();
     if let Some(skip_list) = &config.obfuscation.skip_files {
         if skip_list.iter().any(|entry| file_name.ends_with(entry)) {
-            println!("[skip] {}", file_name);
             return Ok(source);
         }
     }
@@ -37,7 +36,6 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
         let set = builder.build()?;
 
         if !set.is_match(path) {
-            println!("[exclude by include.files] {}", file_name);
             return Ok(source);
         }
 
@@ -45,7 +43,6 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
             for pattern in exclude_patterns {
                 let exclude_glob = Glob::new(pattern)?;
                 if exclude_glob.compile_matcher().is_match(path) {
-                    println!("[excluded] {}", file_name);
                     return Ok(source);
                 }
             }
@@ -126,6 +123,38 @@ impl VisitMut for ObfuscationTransformer {
         syn::visit_mut::visit_expr_mut(self, expr);
     }
 
+    fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
+        if !self.obfuscate_strings {
+            return syn::visit_mut::visit_stmt_mut(self, stmt);
+        }
+
+        if let Stmt::Local(local) = stmt {
+            if let Some(init) = &mut local.init {
+                if let Expr::Lit(ExprLit { lit: Lit::Str(ref lit_str), .. }) = *init.expr {
+                    let value = lit_str.value();
+
+                    if let Some(min_len) = self.min_string_length {
+                        if value.len() < min_len {
+                            return;
+                        }
+                    }
+
+                    if let Some(ref ignores) = self.ignore_strings {
+                        if ignores.iter().any(|s| s == &value) {
+                            return;
+                        }
+                    }
+
+                    let span = lit_str.span();
+                    let wrapped: Expr = syn::parse2(quote_spanned! {span=> obfuscate_string!(#value) }).unwrap();
+                    init.expr = Box::new(wrapped);
+                }
+            }
+        }
+
+        syn::visit_mut::visit_stmt_mut(self, stmt);
+    }
+
     fn visit_expr_if_mut(&mut self, node: &mut ExprIf) {
         if self.obfuscate_flow {
             let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
@@ -174,20 +203,16 @@ impl VisitMut for ObfuscationTransformer {
     }
 
     fn visit_item_fn_mut(&mut self, func: &mut ItemFn) {
-        if !self.rename_identifiers {
-            return;
+        if self.rename_identifiers {
+            let original = func.sig.ident.to_string();
+            if !self.preserve_idents.contains(&original) {
+                let suffix = generate_obf_suffix();
+                let new_name = format!("{}_obf_{}", original, suffix);
+                func.sig.ident = Ident::new(&new_name, func.sig.ident.span());
+            }
         }
 
-        let original = func.sig.ident.to_string();
-        if self.preserve_idents.contains(&original) {
-            return;
-        }
-
-        let suffix = generate_obf_suffix();
-        let new_name = format!("{}_obf_{}", original, suffix);
-        func.sig.ident = Ident::new(&new_name, func.sig.ident.span());
-
-        syn::visit_mut::visit_item_fn_mut(self, func);
+        self.visit_block_mut(&mut func.block);
     }
 
     fn visit_pat_ident_mut(&mut self, pat: &mut PatIdent) {
