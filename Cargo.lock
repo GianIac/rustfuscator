@@ -483,6 +483,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "cryptify",
+ "obfuscator_derive",
  "rand",
 ]
 
