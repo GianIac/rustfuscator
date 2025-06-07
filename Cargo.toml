@@ -35,4 +35,4 @@ rand = "0.8"
 aes-gcm = "0.10"
 aes = "0.8"
 aead = "0.5"
-obfuscator_derive = { path = "obfuscator_derive" }
+obfuscator_deriv = "0.2.0"
