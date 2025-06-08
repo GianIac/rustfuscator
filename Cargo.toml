@@ -11,10 +11,6 @@ keywords = [
     "obfuscation",
     "macros",
     "security",
-    "code-protection",
-    "string-encryption",
-    "control-flow",
-    "compiler-plugin",
     "cli",
     "rust-tools"
 ]
