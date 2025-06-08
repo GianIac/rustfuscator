@@ -337,7 +337,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "obfuscator_cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -357,6 +357,20 @@ dependencies = [
 [[package]]
 name = "obfuscator_derive"
 version = "0.2.0"
+dependencies = [
+ "aes-gcm",
+ "generic-array",
+ "proc-macro2",
+ "quote",
+ "rand",
+ "syn",
+]
+
+[[package]]
+name = "obfuscator_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f29a74464e34bde90fc3b072ff9094dfcb670509692f1afaefbfe4c064ae341"
 dependencies = [
  "aes-gcm",
  "generic-array",
@@ -484,7 +498,7 @@ dependencies = [
  "aes",
  "aes-gcm",
  "cryptify",
- "obfuscator_derive",
+ "obfuscator_derive 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand",
 ]
 
