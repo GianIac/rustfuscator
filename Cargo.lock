@@ -346,6 +346,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
+ "rust_code_obfuscator",
  "serde",
  "syn",
  "toml",
