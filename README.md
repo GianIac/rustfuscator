@@ -140,4 +140,3 @@ It significantly increases the complexity of reverse engineering, but should be 
 ## License
 
 MIT License © 2025 Gianfranco Iaculo
-
