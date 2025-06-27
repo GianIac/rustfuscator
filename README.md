@@ -92,7 +92,7 @@ Example file:
 Add to your Cargo.toml:
 
 `[dependencies] -->
-rust_code_obfuscator = "0.2.0"`
+rust_code_obfuscator = "0.2.1"`
 
 Use it:
 
