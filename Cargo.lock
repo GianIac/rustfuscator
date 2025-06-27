@@ -502,7 +502,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustfuscator"
+name = "rust_code_obfuscator_v2"
 version = "0.2.1"
 dependencies = [
  "aead",
