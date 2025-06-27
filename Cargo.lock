@@ -337,7 +337,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "obfuscator_cli"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "obfuscator_derive"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aes-gcm",
  "generic-array",
@@ -492,7 +492,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "rust_code_obfuscator"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aead",
  "aes",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "rust_code_obfuscator_v2"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aead",
  "aes",
