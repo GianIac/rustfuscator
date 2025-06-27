@@ -1,0 +1,13 @@
+[package]
+name = "rust_code_obfuscator"
+version = "0.2.1"
+edition = "2021"
+description = "Core library for Rustfuscator"
+license = "MIT"
+
+[dependencies]
+cryptify = "3.1.1"
+rand = "0.8"
+aes-gcm = "0.10"
+aes = "0.8"
+aead = "0.5"
