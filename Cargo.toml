@@ -1,29 +1,16 @@
 [package]
 name = "rust_code_obfuscator"
-version = "0.2.2"
-edition = "2024"
-description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
+version = "0.2.3"
+edition = "2021"
 license = "MIT"
+description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
 repository = "https://github.com/GianIac/rustfuscator"
+keywords = ["obfuscation", "macros", "cli", "security", "rust-tools"]
 categories = ["development-tools", "command-line-utilities", "cryptography"]
 
-keywords = [
-    "obfuscation",
-    "macros",
-    "security",
-    "cli",
-    "rust-tools"
-]
-
-[workspace]
-members = [
-    "rust_code_obfuscator_core",
-    "obfuscator_derive",
-    "obfuscator_cli"
-]
-
-[features]
-obfuscation = []
+[lib]
+name = "rust_code_obfuscator"
+path = "src/lib.rs"
 
 [dependencies]
 cryptify = "3.1.1"
@@ -31,4 +18,6 @@ rand = "0.8"
 aes-gcm = "0.10"
 aes = "0.8"
 aead = "0.5"
-obfuscator_derive = "0.2.0"
+
+rust_code_obfuscator_core = "0.2.3"
+obfuscator_derive = "0.2.3"

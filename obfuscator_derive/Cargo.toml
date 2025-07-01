@@ -1,12 +1,10 @@
 [package]
 name = "obfuscator_derive"
-version = "0.2.2"
-edition = "2024"
+version = "0.2.3"
+edition = "2021"
 description = "Derive macro for struct-level encryption used in rustfuscator"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
-homepage = "https://github.com/GianIac/rustfuscator"
-documentation = "https://docs.rs/obfuscator_derive"
 
 [lib]
 proc-macro = true
@@ -15,6 +13,6 @@ proc-macro = true
 syn = "2.0"
 quote = "1.0"
 proc-macro2 = "1.0"
-aes-gcm = "0.10"              
-rand = "0.8"                  
-generic-array = "0.14"       
+aes-gcm = "0.10"
+rand = "0.8"
+generic-array = "0.14"
