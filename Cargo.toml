@@ -17,7 +17,7 @@ keywords = [
 
 [workspace]
 members = [
-    "Rust_code_obfuscator",
+    "rust_code_obfuscator_core",
     "obfuscator_derive",
     "obfuscator_cli"
 ]
