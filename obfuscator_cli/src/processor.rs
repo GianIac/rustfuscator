@@ -12,7 +12,7 @@ use syn::{
 
 use globset::{Glob, GlobSetBuilder};
 
-use rust_code_obfuscator::utils::generate_obf_suffix;
+use rust_code_obfuscator_core::utils::generate_obf_suffix;
 
 use crate::config::ObfuscateConfig;
 
