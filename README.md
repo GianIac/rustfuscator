@@ -3,11 +3,6 @@
 [![crates.io](https://img.shields.io/crates/v/rust_code_obfuscator.svg)](https://crates.io/crates/rust_code_obfuscator)
 [![docs.rs](https://img.shields.io/docsrs/rust_code_obfuscator)](https://docs.rs/rust_code_obfuscator)
 
-> **Note:**  
-> The publication on [crates.io](https://crates.io/crates/rust_code_obfuscator) will be restored soon.  
-> It was temporarily taken down due to some conflicts, but it will be resolved and republished shortly.  
-> In the meantime, you can install it directly from the GitHub repository by following the instructions below.
-
 **Obfuscation-first CLI and library for Rust.**  
 Protect your source code from reverse engineering by encrypting string literals, injecting opaque control-flow, and rewriting AST logic — with full automation CLI, macros or a derive.
 
