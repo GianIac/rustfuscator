@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 
             let output_path = output.join(relative);
             println!("Writing to: {}", output_path.display());
-            file_io::write_transformed(&output_path, &transformed)?;
+            file_io::write_transformed(&output_path, &transformed, args.format)?;
         }
     }
 
@@ -85,7 +85,7 @@ min_string_length = 4
 ignore_strings = ["DEBUG", "LOG"]
 control_flow = true
 skip_files = ["src/main.rs"]
-skip_docstrings = true
+skip_attributes = true
 
 [identifiers]
 rename = false

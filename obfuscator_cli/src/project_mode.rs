@@ -8,12 +8,12 @@ use crate::config::ObfuscateConfig;
 use crate::file_io::write_transformed;
 use crate::processor::process_file;
 
-pub fn process_project(input: &Path, output: &Path, apply_format: bool, config: &ObfuscateConfig) -> Result<()> {
+pub fn process_project(input: &Path, output: &Path, format: bool, config: &ObfuscateConfig) -> Result<()> {
     copy_full_structure(input, output)?;
-    transform_rust_files(output, config)?;
+    transform_rust_files(output, config, format)?;
     patch_cargo_toml(output)?;
 
-    if apply_format {
+    if format {
         ensure_rustfmt_installed()?;
         format_rust_files(output)?;
     }
@@ -33,7 +33,7 @@ fn copy_full_structure(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig) -> Result<()> {
+fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig, format: bool) -> Result<()> {
     for entry in WalkDir::new(project_root)
         .into_iter()
         .filter_map(Result::ok)
@@ -42,7 +42,11 @@ fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig) -> Result
         let file_path = entry.path();
         let relative = file_path.strip_prefix(project_root)?;
         let transformed = process_file(file_path, relative, config)?;
-        write_transformed(file_path, &transformed)?;
+
+        // Debugging help
+        println!("Writing {}", file_path.display());
+
+        write_transformed(&file_path, &transformed, format)?;
     }
     Ok(())
 }

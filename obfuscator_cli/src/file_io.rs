@@ -17,10 +17,18 @@ pub fn gather_rust_files(input: &Path) -> Result<Vec<PathBuf>> {
     }
 }
 
-pub fn write_transformed(dest: &Path, content: &str) -> Result<()> {
+pub fn write_transformed(dest: &Path, content: &str, format: bool) -> Result<()> {
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
     fs::write(dest, content)?;
+
+    if format {
+        let _ = std::process::Command::new("rustfmt")
+            .arg(dest)
+            .status()
+            .map_err(|e| anyhow::anyhow!("Failed to run rustfmt: {}", e))?;
+    }
+
     Ok(())
 }
