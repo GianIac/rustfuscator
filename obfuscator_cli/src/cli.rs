@@ -23,4 +23,8 @@ pub struct Cli {
     /// Generate a default .obfuscate.toml file
     #[arg(long, default_value_t = false)]
     pub init: bool,
+
+    /// Output result as JSON
+    #[arg(long, default_value_t = false)]
+    pub json: bool,
 }

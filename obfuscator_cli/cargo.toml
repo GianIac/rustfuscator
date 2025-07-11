@@ -17,5 +17,6 @@ toml_edit = "0.20"
 toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 globset = "0.4"
+serde_json = "1.0"
 
 rust_code_obfuscator_core = { path = "../rust_code_obfuscator_core" }

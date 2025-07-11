@@ -62,7 +62,7 @@ fn main() -> Result<()> {
 
             dbg!(relative);
 
-            let transformed = processor::process_file(&file_path, relative, &config)?;
+            let transformed = processor::process_file(&file_path, relative, &config, args.json)?;
 
             let output_path = output.join(relative);
             println!("Writing to: {}", output_path.display());

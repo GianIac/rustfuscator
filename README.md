@@ -76,7 +76,7 @@ Example file:
   ignore_strings = ["DEBUG", "LOG"]
   control_flow = true
   skip_files = ["src/main.rs"]
-  skip_docstrings = true
+  skip_attributes = true 
   
   [identifiers]
   rename = false

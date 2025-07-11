@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use anyhow::Result;
 use std::fs;
 use quote::{quote, quote_spanned};
@@ -9,19 +9,23 @@ use syn::{
     ExprIf, ExprMatch, ExprLoop, ExprWhile, ExprForLoop, Stmt,
     Ident, ItemFn, PatIdent,
 };
-
 use globset::{Glob, GlobSetBuilder};
-
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 
 use crate::config::ObfuscateConfig;
 
-pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig) -> Result<String> {
+pub fn process_file(
+    path: &Path,
+    relative_path: &Path,
+    config: &ObfuscateConfig,
+    json_output: bool,
+) -> Result<String> {
     let source = fs::read_to_string(path)?;
 
     let file_name = relative_path.to_string_lossy();
     if let Some(skip_list) = &config.obfuscation.skip_files {
         if skip_list.iter().any(|entry| file_name.ends_with(entry)) {
+            println!("Skipping file (matched skip_files): {}", file_name);
             return Ok(source);
         }
     }
@@ -37,6 +41,7 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
         let set = builder.build()?;
 
         if !set.is_match(path) {
+            println!("Skipping file (not in include patterns): {}", file_name);
             return Ok(source);
         }
 
@@ -44,6 +49,7 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
             for pattern in exclude_patterns {
                 let exclude_glob = Glob::new(pattern)?;
                 if exclude_glob.compile_matcher().is_match(path) {
+                    println!("Skipping file (excluded by pattern): {}", file_name);
                     return Ok(source);
                 }
             }
@@ -84,7 +90,24 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
         }
     };
 
-    Ok(tokens.to_string())
+    let transformed = tokens.to_string();
+
+    // ➤ Scrivi output JSON se richiesto da --json
+    if json_output {
+        let json_payload = serde_json::json!({
+            "file": relative_path.to_string_lossy(),
+            "transformed": transformed
+        });
+
+        let json_path = PathBuf::from("obf_json").join(relative_path).with_extension("json");
+        fs::create_dir_all(json_path.parent().unwrap())?;
+        fs::write(&json_path, serde_json::to_string_pretty(&json_payload)?)?;
+        println!("✓ Saved transformed JSON to {}", json_path.display());
+
+        return Ok(String::new());
+    }
+
+    Ok(transformed)
 }
 
 struct ObfuscationTransformer {
@@ -155,15 +178,14 @@ impl VisitMut for ObfuscationTransformer {
             }
         }
 
+        syn::visit_mut::visit_stmt_mut(self, stmt);
+    }
+
     fn visit_attribute_mut(&mut self, attr: &mut syn::Attribute) {
         if self.skip_attributes {
             return;
         }
         syn::visit_mut::visit_attribute_mut(self, attr);
-    }
-        
-
-        syn::visit_mut::visit_stmt_mut(self, stmt);
     }
 
     fn visit_expr_if_mut(&mut self, node: &mut ExprIf) {

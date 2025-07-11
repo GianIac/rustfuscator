@@ -41,7 +41,7 @@ fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig, format: b
     {
         let file_path = entry.path();
         let relative = file_path.strip_prefix(project_root)?;
-        let transformed = process_file(file_path, relative, config)?;
+        let transformed = process_file(file_path, relative, config, false)?;
 
         // Debugging help
         println!("Writing {}", file_path.display());
