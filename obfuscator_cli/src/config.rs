@@ -14,6 +14,7 @@ pub struct ObfuscationSection {
     pub ignore_strings: Option<Vec<String>>,
     pub control_flow: bool,
     pub skip_files: Option<Vec<String>>,
+    pub skip_docstrings: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

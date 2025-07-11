@@ -59,6 +59,7 @@ pub fn process_file(path: &Path, relative_path: &Path, config: &ObfuscateConfig)
         preserve_idents: config.identifiers.as_ref().and_then(|id| id.preserve.clone()).unwrap_or_default(),
         obfuscate_strings: config.obfuscation.strings,
         obfuscate_flow: config.obfuscation.control_flow,
+        skip_docstrings: config.obfuscation.skip_docstrings.unwrap_or(false),
     };
     transformer.visit_file_mut(&mut syntax_tree);
 
@@ -93,6 +94,7 @@ struct ObfuscationTransformer {
     preserve_idents: Vec<String>,
     obfuscate_strings: bool,
     obfuscate_flow: bool,
+    skip_docstrings: bool,
 }
 
 impl VisitMut for ObfuscationTransformer {
@@ -152,6 +154,17 @@ impl VisitMut for ObfuscationTransformer {
                 }
             }
         }
+
+    fn visit_attribute_mut(&mut self, attr: &mut syn::Attribute) {
+        if self.skip_docstrings {
+            // Skip doc comments like this --> #[doc = "fratm"]
+            if attr.path().is_ident("doc") {
+                return;
+            }
+        }
+        syn::visit_mut::visit_attribute_mut(self, attr);
+    }
+        
 
         syn::visit_mut::visit_stmt_mut(self, stmt);
     }

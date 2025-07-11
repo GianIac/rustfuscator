@@ -85,6 +85,7 @@ min_string_length = 4
 ignore_strings = ["DEBUG", "LOG"]
 control_flow = true
 skip_files = ["src/main.rs"]
+skip_docstrings = true
 
 [identifiers]
 rename = false
