@@ -1,6 +1,6 @@
 # rust_code_obfuscator_core
 
-> Core engine for the [Rustfuscator](https://lib.rs/crates/rust_code_obfuscator) — a control flow and syntax obfuscation tool for Rust codebases.
+> Core engine for the [Rustfuscator]((https://github.com/gianiac/rustfuscator)) — a control flow and syntax obfuscation tool for Rust codebases.
 
 ---
 
