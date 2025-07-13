@@ -1,0 +1,271 @@
+<!-- obfuscation_fundamentals.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Code Obfuscation Fundamentals</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2rem auto;
+      max-width: 900px;
+      padding: 1.5rem;
+      background: #fff;
+      color: #222;
+      line-height: 1.7;
+    }
+
+    h1, h2, h3 {
+      color: #1e1e1e;
+      padding-bottom: 0.2em;
+      margin-top: 2rem;
+    }
+
+    blockquote {
+      background: #f7f7f7;
+      padding: 1rem;
+      border-left: 4px solid #999;
+      font-style: italic;
+      margin: 1.5rem 0;
+    }
+
+    code {
+      background: #f4f4f4;
+      color: #222;
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+    }
+
+    pre {
+      background: #f4f4f4;
+      color: #222;
+      padding: 1em;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.95em;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 1rem;
+      font-size: 0.95em;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 0.6em;
+      text-align: left;
+    }
+
+    th {
+      background: #fafafa;
+    }
+
+    hr {
+      margin: 2.5rem 0;
+      border: none;
+      border-top: 1px solid #ddd;
+    }
+
+    a {
+      color: #0366d6;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    ul {
+      margin-top: 0.5em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Code Obfuscation Fundamentals</h1>
+
+<blockquote><strong>"Secure code is no longer a luxury — it’s a necessity. If your code runs in untrusted environments, obfuscation is not optional — it’s essential."</strong></blockquote>
+
+<hr>
+
+<h2>What Obfuscation Really Does</h2>
+
+<p>In modern software distribution, any compiled binary is a potential attack surface. Reverse engineering is cheap, automated, and increasingly common.</p>
+
+<p><strong>Code obfuscation</strong> is the practice of transforming a program into a version that is semantically equivalent but intentionally harder to understand — for both humans and automated tools.</p>
+
+<ul>
+  <li>Preserves behavior (<code>P</code> becomes <code>P'</code>, but <code>P(x) == P'(x)</code>)</li>
+  <li>Introduces complexity in analysis</li>
+  <li>Adds friction to analysis pipelines and human inspection</li>
+</ul>
+
+<hr>
+
+<h2>Who This Is For (and Why)</h2>
+
+<p>This guide supports:</p>
+<ul>
+  <li>Contributors to <a href="https://github.com/GianIac/rustfuscator"><code>Rustfuscator</code></a></li>
+  <li>Engineers designing or evaluating obfuscation transformations</li>
+  <li>Developers who want to understand practical, measurable obfuscation goals</li>
+</ul>
+
+<hr>
+
+<h2>How to Make Code Hard to Reverse</h2>
+
+<p>Good obfuscation increases at least one of the following:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Property</th>
+      <th>Goal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Resilience</strong></td>
+      <td>Survive automated analysis: AST walkers, symbolic execution, etc.</td>
+    </tr>
+    <tr>
+      <td><strong>Stealth</strong></td>
+      <td>Output resembles normal code (no obvious patterns)</td>
+    </tr>
+    <tr>
+      <td><strong>Cost</strong></td>
+      <td>Slow down reverse engineers and tools significantly</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>Real-World Obfuscation Strategies</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Example (Rust)</th>
+      <th>Goal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Control Flow</td>
+      <td>Fake <code>if false { ... }</code> branches</td>
+      <td>Confuse control graphs and logic flow</td>
+    </tr>
+    <tr>
+      <td>String Encryption</td>
+      <td><code>obfuscate_string!("...")</code></td>
+      <td>Prevent static string scanning</td>
+    </tr>
+    <tr>
+      <td>AST Rewriting</td>
+      <td>Split expressions, flatten logic</td>
+      <td>Break symbolic simplification</td>
+    </tr>
+    <tr>
+      <td>Junk Code</td>
+      <td>Insert dead branches or fake functions</td>
+      <td>Increase binary entropy and distract readers</td>
+    </tr>
+    <tr>
+      <td>Data Obfuscation</td>
+      <td>Algebraic encoding of booleans/ints</td>
+      <td>Hide semantic meaning of fields</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>Encrypting Strings with Macros</h2>
+
+<p><strong>Example macro use:</strong></p>
+
+<pre><code>let msg = obfuscate_string!("secret data");</code></pre>
+
+<p><strong>Expands into:</strong></p>
+
+<pre><code>let msg = decrypt(&[0x52, 0xA1, 0x39, ...], [0x00, 0xF1, 0x44, ...]);</code></pre>
+
+<p><strong>Why it matters:</strong></p>
+<ul>
+  <li>Prevents static scanning with <code>strings</code> or signature tools</li>
+  <li>Requires runtime analysis to extract values</li>
+  <li>Encrypted at compile-time, decrypted only on demand</li>
+</ul>
+
+<hr>
+
+<h2>Beyond Basics: Obscure the Flow</h2>
+
+<h3>Opaque Predicates</h3>
+<p>Conditions that always evaluate to true or false, but can’t be resolved statically:</p>
+
+<pre><code>if (calculate_checksum(ptr) % 13 == 7) || is_aligned(ptr) {
+    // Always true, not statically provable
+}</code></pre>
+
+<h3>Control-Flow Flattening</h3>
+
+<pre><code>let mut state = 0;
+loop {
+    match state {
+        0 => { /* setup */ state = 1; },
+        1 => { /* logic */ break; },
+        _ => break,
+    }
+}</code></pre>
+
+<h3>Macro-Based Expansion</h3>
+
+<ul>
+  <li>Nesting</li>
+  <li>Unusual syntax trees</li>
+  <li>Encrypted struct fields with <code>#[derive(Obfuscate)]</code></li>
+</ul>
+
+<hr>
+
+<h2>Where Obfuscation Breaks Down</h2>
+
+<ul>
+  <li><strong>Static keys</strong> can be extracted via binary inspection</li>
+  <li><strong>Dynamic tracing</strong> defeats even strong obfuscation</li>
+  <li><strong>Compiler updates</strong> may alter or optimize away obfuscation</li>
+</ul>
+
+<p><em>Obfuscation does not make attacks impossible — it makes them inefficient.</em></p>
+
+<hr>
+
+<h2>Further Reading</h2>
+
+<ul>
+  <li><a href="https://www.cs.auckland.ac.nz/~cthombor/Pubs/01027797a.pdf">Collberg & Thomborson (2002) – Watermarking, Tamper-Proofing, and Obfuscation</a></li>
+  <li><a href="https://www.iacr.org/archive/crypto2001/21390001.pdf">Barak et al. – On the (Im)possibility of Obfuscation</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Obfuscation_(software)">Wikipedia – Software Obfuscation</a></li>
+</ul>
+
+<hr>
+
+<h2>The Real Takeaway</h2>
+
+<p>Rust makes obfuscation harder — and more interesting. Its strictness forces us to be precise, safe, and creative.</p>
+
+<p>If you're contributing to <a href="https://github.com/GianIac/rustfuscator"><code>Rustfuscator</code></a>, this file offers a foundation for designing, evaluating, or extending the engine.</p>
+
+<blockquote><strong>“Every layer of ambiguity increases attacker cost. That’s already a win.”</strong></blockquote>
+
+<p>— <a href="https://www.linkedin.com/in/gianfranco-iaculo-829072250/" target="_blank">Gianfranco Iaculo</a></p>
+
+</body>
+</html>
