@@ -141,6 +141,10 @@ It significantly increases the complexity of reverse engineering, but should be 
 - Compiler flags
 - Other hardening strategies
 
+## Author Note
+
+Commits signed by `user <user@local>` are authored by me (GianIac). This is due to a local Git config and will be corrected going forward.
+
 ## License
 
 MIT License © 2025 Gianfranco Iaculo
