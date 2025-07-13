@@ -3,7 +3,7 @@
 [![crates.io](https://img.shields.io/crates/v/rust_code_obfuscator.svg)](https://crates.io/crates/rust_code_obfuscator)
 [![lib.rs](https://img.shields.io/badge/lib.rs-rust_code_obfuscator-orange?logo=rust)](https://lib.rs/crates/rust_code_obfuscator)
 [![Contributing](https://img.shields.io/badge/docs-contributing-blueviolet?logo=github)](./CONTRIBUTING.md)
-[![Whitepaper](https://img.shields.io/badge/docs-whitepaper-lightgrey?logo=readthedocs)](https://github.com/GianIac/rustfuscator/blob/main/docs/WHITEPAPER.md)
+[![Whitepaper](https://img.shields.io/badge/docs-whitepaper-lightgrey?logo=readthedocs)](https://github.com/GianIac/rustfuscator/blob/main/WHITEPAPER.md)
 
 **Obfuscation-first CLI and library for Rust.**  
 Protect your source code from reverse engineering by encrypting string literals, injecting opaque control-flow, and rewriting AST logic — with full automation CLI, macros or a derive.
