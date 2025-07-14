@@ -23,7 +23,7 @@ You can help in many ways:
 
 No problem! If you’re new to obfuscation techniques or want more context before diving in, check out this introductory document:
 
-👉 [`obfuscation_fundamentals.md`](./obfuscation_fundamentals.html)
+👉 [`obfuscation_fundamentals.md`](https://gianiac.github.io/rustfuscator/obfuscation_fundamentals.html)
 
 ---
 
