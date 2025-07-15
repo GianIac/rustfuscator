@@ -1,8 +1,9 @@
 # obfuscator_derive
 
 [![crates.io](https://img.shields.io/crates/v/rust_code_obfuscator.svg)](https://crates.io/crates/rust_code_obfuscator)
-[![lib.rs](https://img.shields.io/badge/lib.rs-rust_code_obfuscator-orange?logo=rust)](https://lib.rs/crates/rust_code_obfuscator)
-[![docs.rs](https://img.shields.io/docsrs/rust_code_obfuscator)](https://docs.rs/rust_code_obfuscator)
+[![Contributing](https://img.shields.io/badge/docs-contributing-blueviolet?logo=github)](./CONTRIBUTING.md)
+[![Whitepaper](https://img.shields.io/badge/docs-whitepaper-lightgrey?logo=readthedocs)](https://github.com/GianIac/rustfuscator/blob/main/WHITEPAPER.md)
+[![Obfuscation Guide](https://img.shields.io/badge/docs-obfuscation_fundamentals-blue?logo=rust)](https://gianiac.github.io/rustfuscator/obfuscation_fundamentals.html)
 
 > Procedural macro definitions for the [Rustfuscator](https://github.com/gianiac/rustfuscator) — a Rust obfuscation framework for control flow, syntax, and literal protection.
 
