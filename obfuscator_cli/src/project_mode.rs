@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
-use toml_edit::{Document, Item, Table, value};
+use toml_edit::{DocumentMut, Item, Table, value};
 
 use crate::config::ObfuscateConfig;
 use crate::file_io::write_transformed;
@@ -43,7 +43,6 @@ fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig, format: b
         let relative = file_path.strip_prefix(project_root)?;
         let transformed = process_file(file_path, relative, config, false)?;
 
-        // Debugging help
         println!("Writing {}", file_path.display());
 
         write_transformed(&file_path, &transformed, format)?;
@@ -58,13 +57,16 @@ fn patch_cargo_toml(project_root: &Path) -> Result<()> {
     }
 
     let content = fs::read_to_string(&cargo_path)?;
-    let mut doc = content.parse::<Document>()?;
+    let mut doc = content.parse::<DocumentMut>()?;
 
     if doc.get("dependencies").is_none() {
         doc["dependencies"] = Item::Table(Table::new());
     }
 
-    let deps = doc["dependencies"].as_table_mut().unwrap();
+    let deps = doc["dependencies"]
+        .as_table_mut()
+        .context("Expected `[dependencies]` to be a table")?;
+
     if deps.contains_key("rust_code_obfuscator") {
         return Ok(());
     }
