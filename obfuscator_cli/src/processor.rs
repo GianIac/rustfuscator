@@ -80,15 +80,25 @@ pub fn process_file(
         }
     }
 
+    let mut use_statements = vec![];
+
+    if transformer.obfuscate_strings {
+        use_statements.push(quote! { use rust_code_obfuscator::obfuscate_string; });
+    }
+    if transformer.obfuscate_flow {
+        use_statements.push(quote! { use rust_code_obfuscator::obfuscate_flow; });
+    }
+    
     let tokens = if has_use {
-        quote!(#syntax_tree)
-    } else {
         quote! {
-            extern crate rust_code_obfuscator;
-            use rust_code_obfuscator::{obfuscate_string, obfuscate_flow};
             #syntax_tree
         }
-    };
+    } else {
+        quote! {
+            #(#use_statements)*
+            #syntax_tree
+        }
+    };    
 
     let transformed = tokens.to_string();
 
