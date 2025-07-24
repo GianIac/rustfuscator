@@ -3,6 +3,7 @@ mod file_io;
 mod processor;
 mod project_mode;
 mod config;
+mod utils;
 
 use anyhow::{bail, Result};
 use clap::Parser;
