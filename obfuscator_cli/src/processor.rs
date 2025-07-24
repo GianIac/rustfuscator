@@ -1,17 +1,16 @@
+use std::collections::HashSet;
+use std::fs;
 use std::path::{Path, PathBuf};
 use anyhow::Result;
-use std::fs;
 use quote::{quote, quote_spanned};
 use syn::{
-    parse_file,
-    visit_mut::VisitMut,
+    parse_file, visit_mut::VisitMut,
     Expr, ExprLit, Lit,
     ExprIf, ExprMatch, ExprLoop, ExprWhile, ExprForLoop, Stmt,
     Ident, ItemFn, PatIdent,
 };
 use globset::{Glob, GlobSetBuilder};
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
-
 use crate::config::ObfuscateConfig;
 
 pub fn process_file(
@@ -32,7 +31,6 @@ pub fn process_file(
 
     if let Some(include) = &config.include {
         let mut builder = GlobSetBuilder::new();
-
         if let Some(files) = &include.files {
             for pattern in files {
                 builder.add(Glob::new(pattern)?);
@@ -66,6 +64,7 @@ pub fn process_file(
         obfuscate_strings: config.obfuscation.strings,
         obfuscate_flow: config.obfuscation.control_flow,
         skip_attributes: config.obfuscation.skip_attributes.unwrap_or(false),
+        obfuscated_vars: HashSet::new(),
     };
     transformer.visit_file_mut(&mut syntax_tree);
 
@@ -88,21 +87,15 @@ pub fn process_file(
     if transformer.obfuscate_flow {
         use_statements.push(quote! { use rust_code_obfuscator::obfuscate_flow; });
     }
-    
+
     let tokens = if has_use {
-        quote! {
-            #syntax_tree
-        }
+        quote! { #syntax_tree }
     } else {
-        quote! {
-            #(#use_statements)*
-            #syntax_tree
-        }
-    };    
+        quote! { #(#use_statements)* #syntax_tree }
+    };
 
     let transformed = tokens.to_string();
 
-    // ➤ Scrivi output JSON se richiesto da --json
     if json_output {
         let json_payload = serde_json::json!({
             "file": relative_path.to_string_lossy(),
@@ -128,6 +121,7 @@ struct ObfuscationTransformer {
     obfuscate_strings: bool,
     obfuscate_flow: bool,
     skip_attributes: bool,
+    obfuscated_vars: HashSet<String>,
 }
 
 impl VisitMut for ObfuscationTransformer {
@@ -139,16 +133,12 @@ impl VisitMut for ObfuscationTransformer {
         if let Expr::Lit(ExprLit { lit: Lit::Str(ref lit_str), .. }) = expr {
             let value = lit_str.value();
 
-            if let Some(min_len) = self.min_string_length {
-                if value.len() < min_len {
-                    return;
-                }
+            if self.min_string_length.map_or(false, |min| value.len() < min) {
+                return;
             }
 
-            if let Some(ref ignores) = self.ignore_strings {
-                if ignores.iter().any(|s| s == &value) {
-                    return;
-                }
+            if self.ignore_strings.as_ref().map_or(false, |list| list.contains(&value)) {
+                return;
             }
 
             let span = lit_str.span();
@@ -160,30 +150,14 @@ impl VisitMut for ObfuscationTransformer {
     }
 
     fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
-        if !self.obfuscate_strings {
-            return syn::visit_mut::visit_stmt_mut(self, stmt);
-        }
-
         if let Stmt::Local(local) = stmt {
-            if let Some(init) = &mut local.init {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(ref lit_str), .. }) = *init.expr {
-                    let value = lit_str.value();
-
-                    if let Some(min_len) = self.min_string_length {
-                        if value.len() < min_len {
-                            return;
+            if let Some(init) = &local.init {
+                if let Expr::Macro(mac) = &*init.expr {
+                    if mac.mac.path.is_ident("obfuscate_string") {
+                        if let syn::Pat::Ident(pat_ident) = &local.pat {
+                            self.obfuscated_vars.insert(pat_ident.ident.to_string());
                         }
                     }
-
-                    if let Some(ref ignores) = self.ignore_strings {
-                        if ignores.iter().any(|s| s == &value) {
-                            return;
-                        }
-                    }
-
-                    let span = lit_str.span();
-                    let wrapped: Expr = syn::parse2(quote_spanned! {span=> obfuscate_string!(#value) }).unwrap();
-                    init.expr = Box::new(wrapped);
                 }
             }
         }
@@ -218,6 +192,15 @@ impl VisitMut for ObfuscationTransformer {
                 arm.body = Box::new(syn::parse_quote!({ obfuscate_flow!(); #original }));
             }
         }
+
+        if let Expr::Path(ref expr_path) = *node.expr {
+            if let Some(ident) = expr_path.path.get_ident() {
+                if self.obfuscated_vars.contains(&ident.to_string()) {
+                    node.expr = Box::new(syn::parse_quote!(&*#ident));
+                }
+            }
+        }
+
         syn::visit_mut::visit_expr_match_mut(self, node);
     }
 

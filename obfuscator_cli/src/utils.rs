@@ -14,7 +14,7 @@ pub fn is_virtual_manifest(path: &Path) -> Result<bool> {
 pub fn get_local_crate_version(crate_name: &str) -> Result<Option<String>> {
     let metadata = MetadataCommand::new().exec()?;
     for package in metadata.packages {
-        if package.name == crate_name {
+        if package.name.as_str() == crate_name {
             return Ok(Some(package.version.to_string()));
         }
     }
