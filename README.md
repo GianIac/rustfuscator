@@ -34,7 +34,8 @@ This approach is:
 Fully integrated with the Rust compiler
 Transparent to your runtime logic
 Compatible with all platforms supported by Rust
-➡️ Important: After using the CLI, you still need to build your code with cargo build to produce the final obfuscated binary.
+
+> ➡️ Important: After using the CLI, you still need to build your code with cargo build to produce the final obfuscated binary.
 
 ---
 
