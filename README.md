@@ -37,6 +37,8 @@ Compatible with all platforms supported by Rust
 
 > ➡️ Important: After using the CLI, you still need to build your code with cargo build to produce the final obfuscated binary.
 
+##### If you have time read --> [![Obfuscation Guide](https://img.shields.io/badge/docs-obfuscation_fundamentals-blue?logo=rust)](https://gianiac.github.io/rustfuscator/obfuscation_fundamentals.html) :)
+
 ---
 
 ## Installation
