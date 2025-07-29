@@ -41,7 +41,7 @@ Rustfuscator integrates cleanly with the Cargo toolchain, allowing both macro-ba
 
 ### Out-of-scope (Current)
 
-* Obfuscation during runtime execution
+* Obfuscation during runtime execution (but not now for the moment)
 * Anti-debugging or anti-VM techniques
 * Post-compilation tamper detection
 
