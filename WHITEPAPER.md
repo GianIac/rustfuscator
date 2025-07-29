@@ -252,13 +252,17 @@ rustfuscator --input ./mycrate --output ./mycrate_obf --as-project --format
 
 ## 8. Benchmarks
 
-| Feature             | Overhead                |
-| ------------------- | ----------------------- |
-| String encryption   | +3–10% binary size      |
-| Control-flow inject | \~0–2% runtime slowdown |
-| Identifier renaming | Build-time only         |
+| Feature             | Overhead                | Runtime overhead            |
+| ------------------- | ----------------------- |-----------------------------|
+| String encryption   | +3–10% binary size      | ~1–8% (depending on usage)  |
+| Control-flow inject | \~0–2% runtime slowdown | ~0–2%                       |
+| Identifier renaming | Build-time only         |  0%                         |
 
 System: x86\_64 Linux / Rust 1.76.0, built in release mode with default config.
+### Benchmarks notes 
+- String encryption is performed at compile-time; strings are stored encrypted in the binary and decrypted inline at runtime. No plaintext strings are embedded in the executable.
+- Currently, each use of obfuscate_string!() performs decryption on the fly. This ensures strings aren't kept in memory unnecessarily, at the cost of increased CPU usage when used frequently.
+- Caching is not yet implemented, but we're actively working on a mechanism to optionally cache decrypted strings using once_cell or equivalent. In the future, this may be configurable based on user preference (performance vs. runtime secrecy).
 
 ---
 
