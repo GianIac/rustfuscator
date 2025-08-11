@@ -1,6 +1,6 @@
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 
 pub fn generate_obf_suffix() -> u32 {
-    let mut rng = thread_rng();
-    rng.gen_range(1000..=9999)
+    let mut rng = rng();
+    rng.random_range(1000..=9999)
 }
