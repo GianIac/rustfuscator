@@ -108,7 +108,6 @@ Example file:
   [include]
   files = ["**/*.rs"]
   exclude = ["target/**", "tests/**"]
-  exclude = ["target/**", "tests/**"]
 </code></pre>
 
 ## Library Usage
