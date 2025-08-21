@@ -18,14 +18,14 @@ pub fn process_file(
     relative_path: &Path,
     config: &ObfuscateConfig,
     json_output: bool,
-) -> Result<String> {
+) -> Result<(String, bool, Option<String>)> { // (transformed, changed, before_for_diff)
     let source = fs::read_to_string(path)?;
 
     let file_name = relative_path.to_string_lossy();
     if let Some(skip_list) = &config.obfuscation.skip_files {
         if skip_list.iter().any(|entry| file_name.ends_with(entry)) {
             println!("Skipping file (matched skip_files): {}", file_name);
-            return Ok(source);
+            return Ok((source, false, None));
         }
     }
 
@@ -40,7 +40,7 @@ pub fn process_file(
 
         if !set.is_match(path) {
             println!("Skipping file (not in include patterns): {}", file_name);
-            return Ok(source);
+            return Ok((source, false, None));
         }
 
         if let Some(exclude_patterns) = &include.exclude {
@@ -48,7 +48,7 @@ pub fn process_file(
                 let exclude_glob = Glob::new(pattern)?;
                 if exclude_glob.compile_matcher().is_match(path) {
                     println!("Skipping file (excluded by pattern): {}", file_name);
-                    return Ok(source);
+                    return Ok((source, false, None));
                 }
             }
         }
@@ -95,11 +95,13 @@ pub fn process_file(
     };
 
     let transformed = tokens.to_string();
+    let changed = transformed != source;
 
     if json_output {
         let json_payload = serde_json::json!({
             "file": relative_path.to_string_lossy(),
-            "transformed": transformed
+            "transformed": transformed,
+            "changed": changed
         });
 
         let json_path = PathBuf::from("obf_json").join(relative_path).with_extension("json");
@@ -107,10 +109,10 @@ pub fn process_file(
         fs::write(&json_path, serde_json::to_string_pretty(&json_payload)?)?;
         println!("✓ Saved transformed JSON to {}", json_path.display());
 
-        return Ok(String::new());
+        return Ok((String::new(), changed, None));
     }
 
-    Ok(transformed)
+    Ok((transformed, changed, Some(source)))
 }
 
 struct ObfuscationTransformer {

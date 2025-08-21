@@ -3,15 +3,29 @@ use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 use toml_edit::{DocumentMut, Item, Table, value};
+use similar::TextDiff;
 
 use crate::config::ObfuscateConfig;
 use crate::file_io::write_transformed;
 use crate::processor::process_file;
-use crate::utils::{is_virtual_manifest, get_local_crate_version};
 
-pub fn process_project(input: &Path, output: &Path, format: bool, config: &ObfuscateConfig) -> Result<()> {
+pub fn process_project(
+    input: &Path,
+    output: &Path,
+    format: bool,
+    config: &ObfuscateConfig,
+    dry_run: bool,
+    diff_ctx: Option<usize>,
+    verbose: bool,
+) -> Result<()> {
+    if dry_run {
+        println!("Dry run: scanning project without copying...");
+        transform_rust_files(input, config, /*format=*/false, /*dry_run=*/true, diff_ctx, verbose)?;
+        return Ok(());
+    }
+
     copy_full_structure(input, output)?;
-    transform_rust_files(output, config, format)?;
+    transform_rust_files(output, config, format, /*dry_run=*/false, diff_ctx, verbose)?;
     patch_cargo_toml(output)?;
 
     if format {
@@ -34,7 +48,14 @@ fn copy_full_structure(input: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig, format: bool) -> Result<()> {
+fn transform_rust_files(
+    project_root: &Path,
+    config: &ObfuscateConfig,
+    format: bool,
+    dry_run: bool,
+    diff_ctx: Option<usize>,
+    verbose: bool,
+) -> Result<()> {
     for entry in WalkDir::new(project_root)
         .into_iter()
         .filter_map(Result::ok)
@@ -42,11 +63,26 @@ fn transform_rust_files(project_root: &Path, config: &ObfuscateConfig, format: b
     {
         let file_path = entry.path();
         let relative = file_path.strip_prefix(project_root)?;
-        let transformed = process_file(file_path, relative, config, false)?;
+        let (transformed, changed, before_opt) = process_file(file_path, relative, config, false)?;
 
-        println!("Writing {}", file_path.display());
+        if verbose {
+            println!("• {} {}", if changed { "[CHANGED]" } else { "[SKIP]" }, relative.display());
+        }
 
-        write_transformed(&file_path, &transformed, format)?;
+        if changed {
+            if let Some(ctx) = diff_ctx {
+                if let Some(before) = before_opt.as_ref() {
+                    let diff = TextDiff::from_lines(before, &transformed);
+                    let old = format!("{} (before)", relative.display());
+                    let new = format!("{} (after)",  relative.display());
+                    println!("{}", diff.unified_diff().context_radius(ctx).header(&old, &new));
+                }
+            }
+            if !dry_run {
+                println!("Writing {}", file_path.display());
+                write_transformed(&file_path, &transformed, format)?;
+            }
+        }
     }
     Ok(())
 }

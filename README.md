@@ -61,15 +61,15 @@ The CLI is the most powerful part of rustfuscator. You can obfuscate anything fr
 
 Obfuscate a single file
 
-`rustfuscator --input ./src/main.rs --output ./obf`
+`obfuscator_cli --input ./src/main.rs --output ./obf`
 
 Obfuscate a full source folder
 
-`rustfuscator --input ./src --output ./obf_src`
+`obfuscator_cli --input ./src --output ./obf_src`
 
 Obfuscate an entire Cargo project
 
-`rustfuscator \
+`obfuscator_cli \
   --input ./my_project \
   --output ./my_project_obf \
   --as-project \
@@ -85,7 +85,7 @@ Automatically:
 ## Configuration with .obfuscate.toml
 Generate a default config:
 
-`rustfuscator --input ./my_project --init`
+`obfuscator_cli --input ./my_project --init`
 
 Example file:
 

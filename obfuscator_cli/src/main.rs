@@ -10,6 +10,7 @@ use clap::Parser;
 use cli::Cli;
 use config::ObfuscateConfig;
 use std::{fs, path::Path};
+use similar::TextDiff;
 
 fn main() -> Result<()> {
     let args = Cli::parse();
@@ -43,7 +44,11 @@ fn main() -> Result<()> {
 
     if args.as_project {
         println!("Running in project mode...");
-        project_mode::process_project(&args.input, output, args.format, &config)?;
+        // --diff          => Some(None)  -> use 3 lines of context
+        // --diff=5        => Some(Some(5))
+        // (no --diff) => None
+        let diff_ctx = args.diff.map(|opt| opt.unwrap_or(3));
+        project_mode::process_project(&args.input, output, args.format, &config, args.dry_run, diff_ctx, args.verbose)?;
     } else {
         println!("Running in single-file mode...");
         if !output.exists() {
@@ -52,6 +57,7 @@ fn main() -> Result<()> {
 
         let files = file_io::gather_rust_files(&args.input)?;
         println!("Found {} files", files.len());
+        let diff_ctx = args.diff.map(|opt| opt.unwrap_or(3));
         for file_path in files {
             println!("\nProcessing: {}", file_path.display());
 
@@ -63,11 +69,31 @@ fn main() -> Result<()> {
 
             dbg!(relative);
 
-            let transformed = processor::process_file(&file_path, relative, &config, args.json)?;
+            let (transformed, changed, before_opt) = processor::process_file(&file_path, relative, &config, args.json)?;
 
-            let output_path = output.join(relative);
-            println!("Writing to: {}", output_path.display());
-            file_io::write_transformed(&output_path, &transformed, args.format)?;
+            if args.json {
+                continue;
+            }
+
+            if args.verbose {
+                println!("• {} {}", if changed { "[CHANGED]" } else { "[SKIP]" }, relative.display());
+            }
+
+            if changed {
+                if let Some(ctx) = diff_ctx {
+                    if let Some(before) = before_opt.as_ref() {
+                        let diff = TextDiff::from_lines(before, &transformed);
+                        let old = format!("{} (before)", relative.display());
+                        let new = format!("{} (after)",  relative.display());
+                        println!("{}", diff.unified_diff().context_radius(ctx).header(&old, &new));
+                    }
+                }
+                if !args.dry_run {
+                    let output_path = output.join(relative);
+                    println!("Writing to: {}", output_path.display());
+                    file_io::write_transformed(&output_path, &transformed, args.format)?;
+                }
+            }
         }
     }
 

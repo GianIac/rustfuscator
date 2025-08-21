@@ -27,4 +27,16 @@ pub struct Cli {
     /// Output result as JSON
     #[arg(long, default_value_t = false)]
     pub json: bool,
+
+    /// Do not write to disk; print what would change
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
+
+    /// Verbose logging (prints touched files/passes)
+    #[arg(long, default_value_t = false)]
+    pub verbose: bool,
+
+    /// Show unified diff; optional context lines (default 3)
+    #[arg(long)]
+    pub diff: Option<Option<usize>>,
 }
