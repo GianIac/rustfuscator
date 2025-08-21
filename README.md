@@ -20,6 +20,24 @@ Protect your source code from reverse engineering by encrypting string literals,
 - Insert control-flow breaking statements (`obfuscate_flow!`)
 - Derive macro for struct encryption (`#[derive(Obfuscate)]`)
 
+## How Obfuscation Works
+
+The rustfuscator CLI does not obfuscate your compiled binary directly.
+
+Instead, it rewrites your Rust source code to wrap strings and logic in macros like obfuscate_string!() and obfuscate_flow!(). These macros perform real obfuscation by:
+
+Encrypting values at compile-time using the cryptify crate.
+Embedding encrypted data into the binary instead of plaintext.
+Generating runtime decryption logic, so your binary still works as expected.
+This approach is:
+
+Fully integrated with the Rust compiler
+Transparent to your runtime logic
+Compatible with all platforms supported by Rust
+
+> ➡️ Important: After using the CLI, you still need to build your code with cargo build to produce the final obfuscated binary.
+
+##### If you have time read --> [![Obfuscation Guide](https://img.shields.io/badge/docs-obfuscation_fundamentals-blue?logo=rust)](https://gianiac.github.io/rustfuscator/obfuscation_fundamentals.html) :)
 
 ---
 
@@ -71,6 +89,9 @@ Generate a default config:
 
 Example file:
 
+> The `.obfuscate.toml` file controls what parts of your code get obfuscated and how.  
+> This file is especially useful when obfuscating full projects.
+
 <pre><code>
   [obfuscation]
   strings = true
@@ -87,7 +108,6 @@ Example file:
   [include]
   files = ["**/*.rs"]
   exclude = ["target/**", "tests/**"]
-  exclude = ["target/**", "tests/**"]
 </code></pre>
 
 ## Library Usage
@@ -95,7 +115,8 @@ Example file:
 Add to your Cargo.toml:
 
 `[dependencies] -->
-rust_code_obfuscator = "0.2.1"`
+rust_code_obfuscator = "0.2.1"
+cryptify = "3.1.1"`
 
 Use it:
 
@@ -142,6 +163,12 @@ It significantly increases the complexity of reverse engineering, but should be 
 - Anti-debugging
 - Compiler flags
 - Other hardening strategies
+
+```markdown
+For stronger binary protection, consider compiling with:
+
+RUSTFLAGS="-C strip=debuginfo -C opt-level=z -C panic=abort" cargo build --release
+```
 
 ## Author Note
 
