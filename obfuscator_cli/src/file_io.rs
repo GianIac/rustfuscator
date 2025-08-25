@@ -1,47 +1,59 @@
 use anyhow::Result;
 use rust_code_obfuscator_core::errors::ObfuscatorError;
-use std::ffi::OsStr;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::{fs, path::Path, path::PathBuf, process::Command};
 use walkdir::WalkDir;
 
 pub fn gather_rust_files(input: &Path) -> Result<Vec<PathBuf>> {
     if input.is_file() {
-        accept_only_rust_files(input)?;
-        Ok(vec![input.to_path_buf()])
-    } else {
-        let files: Vec<PathBuf> = WalkDir::new(input)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
-            .map(|e| e.path().to_path_buf())
-            .collect();
-        Ok(files)
+        ensure_rust_file(input)?;
+        return Ok(vec![input.to_path_buf()]);
     }
+    let mut files = Vec::new();
+    for entry in WalkDir::new(input) {
+        let entry = entry?;
+
+        if entry.file_type().is_file() {
+            let p = entry.path();
+            if p.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("rs"))
+            {
+                files.push(p.to_path_buf());
+            }
+        }
+    }
+    Ok(files)
 }
 
 pub fn write_transformed(dest: &Path, content: &str, format: bool) -> Result<()> {
-    accept_only_rust_files(dest)?;
+    ensure_rust_file(dest)?;
+
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
+
     fs::write(dest, content)?;
 
     if format {
-        let _ = std::process::Command::new("rustfmt")
-            .arg(dest)
-            .status()
-            .map_err(|e| anyhow::anyhow!("Failed to run rustfmt: {}", e))?;
+        // best-effort: ignore errors (rustfmt might not be installed in CI)
+        let _ = Command::new("rustfmt").arg(dest).status();
     }
 
     Ok(())
 }
 
-fn accept_only_rust_files(file: &Path) -> Result<(), ObfuscatorError> {
-    if file.extension() == Some(OsStr::new("rs")) {
+fn ensure_rust_file(file: &Path) -> Result<(), ObfuscatorError> {
+    let is_rs = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("rs"));
+
+    if is_rs {
         return Ok(());
     } else {
-        return Err(ObfuscatorError::InvalidFileExtension);
+        return Err(ObfuscatorError::InvalidFileExtension {
+            path: file.to_path_buf(),
+        });
     }
 }
 
@@ -110,6 +122,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_uppercase_rs() {
+        let td = TempDir::new().unwrap();
+        let f = td.path().join("UPPER.RS");
+        fs::write(&f, "fn main() {}").unwrap();
+
+        let got = gather_rust_files(&f).unwrap();
+        assert_eq!(got, vec![f]);
+    }
+
+    #[test]
     fn gather_rust_files_with_folder_input() {
         let (_temp_dir, root, mut valid_file_paths, _) = create_test_files().unwrap();
         let results: Vec<PathBuf> = gather_rust_files(&root).unwrap();
@@ -148,9 +170,9 @@ mod tests {
             match gather_rust_files(f_path) {
                 Ok(_) => panic!("It should panic"),
                 Err(e) => {
-                    if e.downcast_ref::<ObfuscatorError>()
-                        .is_some_and(|err| matches!(err, ObfuscatorError::InvalidFileExtension))
-                    {
+                    if e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
+                        matches!(err, ObfuscatorError::InvalidFileExtension { path } if path == f_path)
+                    }) {
                         ()
                     } else {
                         panic!("Unexpected error: {:?}", e);
@@ -172,8 +194,9 @@ mod tests {
             match write_transformed(&dest, content, false) {
                 Ok(_) => panic!("It should panic"),
                 Err(e) => {
-                    if e.downcast_ref::<ObfuscatorError>()
-                        .is_some_and(|err| matches!(err, ObfuscatorError::InvalidFileExtension))
+                    if e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
+                        matches!(err, ObfuscatorError::InvalidFileExtension { path } if path == &dest)
+                    })
                     {
                         ();
                     } else {
