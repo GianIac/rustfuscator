@@ -172,7 +172,7 @@ RUSTFLAGS="-C strip=debuginfo -C opt-level=z -C panic=abort" cargo build --relea
 
 ## Author Note
 
-The first commits signed by `user <user@local>` are authored by me (GianIac). This is due to a local Git config and will be corrected going forward.
+The first commits signed by `user <user@local>` are authored by me (GianIac).
 
 ## License
 
