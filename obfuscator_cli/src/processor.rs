@@ -9,6 +9,7 @@ use syn::{
     ExprIf, ExprMatch, ExprLoop, ExprWhile, ExprForLoop, Stmt,
     Ident, ItemFn, PatIdent,
 };
+use prettyplease;
 use globset::{Glob, GlobSetBuilder};
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use crate::config::ObfuscateConfig;
@@ -79,22 +80,22 @@ pub fn process_file(
         }
     }
 
-    let mut use_statements = vec![];
+    let mut new_use_items: Vec<syn::Item> = Vec::new();
 
     if transformer.obfuscate_strings {
-        use_statements.push(quote! { use rust_code_obfuscator::obfuscate_string; });
+        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_string; });
     }
     if transformer.obfuscate_flow {
-        use_statements.push(quote! { use rust_code_obfuscator::obfuscate_flow; });
+        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_flow; });
     }
 
-    let tokens = if has_use {
-        quote! { #syntax_tree }
-    } else {
-        quote! { #(#use_statements)* #syntax_tree }
-    };
+    if !has_use && !new_use_items.is_empty() {
+        for it in new_use_items.into_iter().rev() {
+            syntax_tree.items.insert(0, it);
+        }
+    }
 
-    let transformed = tokens.to_string();
+    let transformed = prettyplease::unparse(&syntax_tree);
     let changed = transformed != source;
 
     if json_output {
@@ -258,5 +259,45 @@ impl VisitMut for ObfuscationTransformer {
         pat.ident = Ident::new(&new_name, pat.ident.span());
 
         syn::visit_mut::visit_pat_ident_mut(self, pat);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ObfuscationSection;
+    fn cfg(strings: bool, flow: bool) -> ObfuscateConfig {
+        ObfuscateConfig {
+            obfuscation: ObfuscationSection {
+                strings,
+                min_string_length: None,
+                ignore_strings: None,
+                control_flow: flow,
+                skip_files: None,
+                skip_attributes: Some(false),
+            },
+            identifiers: None,
+            include: None,
+        }
+    }
+
+    #[test]
+    fn inner_docs_stay_first_and_compileable_transform() {
+        let src = r#"//! Crate docs
+//! More docs
+
+pub fn hello() -> &'static str { "hi" }
+"#;
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("lib.rs");
+        std::fs::write(&p, src).unwrap();
+
+        let (out, _changed, _before) =
+            super::process_file(&p, std::path::Path::new("lib.rs"), &cfg(true, false), false).unwrap();
+
+        let trimmed = out.trim_start();
+        let first = trimmed.chars().next().unwrap();
+        assert!(first == '#' || first == '/', "inner attrs must be first:\n{out}");
+        assert!(!trimmed.starts_with("use "), "never `use` before inner attrs:\n{out}");
     }
 }

@@ -94,4 +94,21 @@ mod tests {
 
         assert_eq!(data_to_encrypt, decrypted);
     }
+
+    #[test]
+    #[should_panic]
+    fn decrypt_with_wrong_key_should_panic() {
+        let key_ok: [u8; 32] = core::array::from_fn(|i| i as u8);
+        let key_bad: [u8; 32] = [0u8; 32];
+        let (ct, nonce) = encrypt_string("secret", &key_ok);
+        let _ = decrypt_string(&ct, &nonce, &key_bad); // expected panic
+    }
+
+    #[test]
+    fn encrypt_and_decrypt_unicode() {
+        let key: [u8; 32] = core::array::from_fn(|i| i as u8);
+        let s = "café Καλημέρα — 数据";
+        let (ct, nonce) = encrypt_string(s, &key);
+        assert_eq!(s, decrypt_string(&ct, &nonce, &key));
+    }
 }

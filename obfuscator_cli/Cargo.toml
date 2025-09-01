@@ -20,6 +20,7 @@ globset = "0.4"
 serde_json = "1.0"
 cargo_metadata = "0.21.0"
 similar = "2"
+prettyplease = "0.2.37"
 tempfile = "3"
 
 rust_code_obfuscator_core = { path = "../rust_code_obfuscator_core" }
