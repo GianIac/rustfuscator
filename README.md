@@ -93,7 +93,6 @@ Example file:
 > This file is especially useful when obfuscating full projects.
 
 <pre><code>
-  
   [obfuscation]
   strings = true
   min_string_length = 4
@@ -109,7 +108,6 @@ Example file:
   [include]
   files = ["**/*.rs"]
   exclude = ["target/**", "tests/**"]
- 
 </code></pre>
 
 ## Library Usage
