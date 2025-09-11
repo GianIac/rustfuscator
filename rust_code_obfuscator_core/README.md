@@ -14,3 +14,19 @@
 This crate is the **core logic** behind [Rustfuscator](https://github.com/gianiac/rustfuscator), a Rust code obfuscation tool that transforms readable Rust code into functionally equivalent but *harder-to-analyze* and *harder-to-reverse-engineer* output.
 
 It is **not** a standalone crate — it powers the procedural macros and CLI-level abstractions of the [Rustfuscator project](https://github.com/gianiac/rustfuscator).
+
+### Key management
+
+Now uses build-time key management (no hardcoded keys). The key is injected via `build.rs`:
+- If `OBFUSCATOR_KEY_HEX` (64 hex chars) is set, that value is used.
+- Otherwise, a random 32-byte key is generated for the build.
+
+A 256-bit AES key is provided at build time (not in source code).
+
+- Deterministic builds:
+  ```bash
+  export OBFUSCATOR_KEY_HEX="00112233... (64 hex chars) ..."
+  cargo build --release 
+  ```
+- If unset, a random key is generated per build.
+- The runtime API returns Result (no unwrap() in crypto paths).

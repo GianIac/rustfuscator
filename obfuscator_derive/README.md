@@ -15,3 +15,9 @@ This crate provides the **procedural macros** used by [Rustfuscator](https://git
 It defines attribute macros like `#[obfuscate]` that mark functions or modules for transformation during compilation.
 
 > ⚠️ This crate is not meant to be used directly. Use [`rust_code_obfuscator`](https://github.com/gianiac/rustfuscator)) unless you're developing internals or writing custom tooling.
+
+### Usage notes
+
+- `#[derive(Obfuscate)]` supports fields of type `String` and `u32`.
+- Invalid field types produce a compile-time error pointing to the offending field.
+- The derive internally uses `rust_code_obfuscator::crypto::default_key()`; no user key plumbing required.
