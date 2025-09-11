@@ -6,9 +6,13 @@ description = "Core encryption and obfuscation logic for rustfuscator"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
 
+[build-dependencies]
+rand = "0.9.1"
+
 [dependencies]
 cryptify = "3.1.1"
 rand = "0.9.1"
 aes-gcm = "0.10"
 aes = "0.8"
 aead = "0.5"
+zeroize = "1.7"
