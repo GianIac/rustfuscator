@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "obfuscator_cli"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -834,7 +834,7 @@ checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
 
 [[package]]
 name = "rust_code_obfuscator"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "aead",
  "aes",
