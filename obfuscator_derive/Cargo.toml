@@ -1,6 +1,6 @@
 [package]
 name = "obfuscator_derive"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 description = "Derive macro for struct-level encryption used in rustfuscator"
 license = "MIT"
