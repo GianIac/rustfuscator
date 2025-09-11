@@ -18,7 +18,7 @@ Protect your source code from reverse engineering by encrypting string literals,
 - No runtime dependency or unpacking
 - Obfuscate string literals at compile-time (`obfuscate_string!`)
 - Insert control-flow breaking statements (`obfuscate_flow!`)
-- Derive macro for struct encryption (`#[derive(Obfuscate)]`)
+- Derive macro for struct encryption (`#[derive(Obfuscate)]`) and compile-time string encryption with build-time key management
 
 ## How Obfuscation Works
 
