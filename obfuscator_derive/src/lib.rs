@@ -11,13 +11,42 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
 
     let data = match &input.data {
         Data::Struct(s) => s,
-        _ => panic!("Obfuscate can only be derived for structs"),
-    };
+        _ => {
+            return syn::Error::new_spanned(
+                &input.ident,
+                "#[derive(Obfuscate)] can only be used on structs"
+            )
+            .to_compile_error()
+            .into();
+        }
+    };    
 
     let fields = match &data.fields {
         Fields::Named(fields) => &fields.named,
-        _ => panic!("Only named fields are supported"),
-    };
+        _ => {
+            return syn::Error::new_spanned(
+                &input.ident,
+                "Obfuscate derive only supports named fields"
+            )
+            .to_compile_error()
+            .into();
+        }
+    };    
+
+    for f in fields {
+        let ty = &f.ty;
+        if !(matches!(ty, Type::Path(p) if p.path.is_ident("String") || p.path.is_ident("u32"))) {
+            return syn::Error::new_spanned(
+                &f.ty,
+                format!(
+                    "Obfuscate derive only supports String and u32 (field `{}` has unsupported type)",
+                    f.ident.as_ref().unwrap()
+                ),
+            )
+            .to_compile_error()
+            .into();
+        }
+    }
 
     let obf_fields = fields.iter().map(|f| {
         let name = &f.ident;
