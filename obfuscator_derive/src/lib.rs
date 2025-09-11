@@ -9,30 +9,33 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     let vis = &input.vis;
     let obf_name = Ident::new(&format!("Obfuscated{}", name), name.span());
 
+    // Structs only
     let data = match &input.data {
         Data::Struct(s) => s,
         _ => {
             return syn::Error::new_spanned(
                 &input.ident,
-                "#[derive(Obfuscate)] can only be used on structs"
+                "#[derive(Obfuscate)] can only be used on structs",
             )
             .to_compile_error()
             .into();
         }
-    };    
+    };
 
+    // Named fields only
     let fields = match &data.fields {
         Fields::Named(fields) => &fields.named,
         _ => {
             return syn::Error::new_spanned(
                 &input.ident,
-                "Obfuscate derive only supports named fields"
+                "Obfuscate derive only supports named fields",
             )
             .to_compile_error()
             .into();
         }
-    };    
+    };
 
+    // Type validation
     for f in fields {
         let ty = &f.ty;
         if !(matches!(ty, Type::Path(p) if p.path.is_ident("String") || p.path.is_ident("u32"))) {
@@ -48,56 +51,74 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
         }
     }
 
+    // Generated obfuscated struct fields
     let obf_fields = fields.iter().map(|f| {
         let name = &f.ident;
-        quote! {
-            #name: (Vec<u8>, [u8; 12])
-        }
+        quote! { #name: (Vec<u8>, [u8; 12]) }
     });
 
+    // Arguments for clear-text constructor
     let clear_args = fields.iter().map(|f| {
         let name = &f.ident;
         let ty = match &f.ty {
             Type::Path(p) if p.path.is_ident("String") => quote! { &str },
             Type::Path(p) if p.path.is_ident("u32") => quote! { u32 },
-            _ => quote! { &str },
+            _ => quote! { &str }, // never reached due to validation above
         };
         quote! { #name: #ty }
     });
 
+    // Encryption in new_clear(...)
     let clear_encrypt = fields.iter().map(|f| {
         let name = &f.ident;
         match &f.ty {
             Type::Path(p) if p.path.is_ident("String") => quote! {
-                #name: rust_code_obfuscator::crypto::encrypt_string(#name, AES_KEY)
+                #name: rust_code_obfuscator::crypto::encrypt_string(
+                    #name,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("encryption failed")
             },
             Type::Path(p) if p.path.is_ident("u32") => quote! {
-                #name: rust_code_obfuscator::crypto::encrypt_u32(#name, AES_KEY)
+                #name: rust_code_obfuscator::crypto::encrypt_u32(
+                    #name,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("encryption failed")
             },
             _ => quote! {
-                #name: rust_code_obfuscator::crypto::encrypt_string(#name, AES_KEY)
+                #name: rust_code_obfuscator::crypto::encrypt_string(
+                    #name,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("encryption failed")
             },
         }
     });
 
+    // Decryption in get_clear()
     let decrypt_fields = fields.iter().map(|f| {
         let name = &f.ident;
         match &f.ty {
             Type::Path(p) if p.path.is_ident("String") => quote! {
-                #name: rust_code_obfuscator::crypto::decrypt_string(&self.#name.0, &self.#name.1, AES_KEY)
+                #name: rust_code_obfuscator::crypto::decrypt_string(
+                    &self.#name.0, &self.#name.1,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("decryption failed")
             },
             Type::Path(p) if p.path.is_ident("u32") => quote! {
-                #name: rust_code_obfuscator::crypto::decrypt_u32(&self.#name.0, &self.#name.1, AES_KEY)
+                #name: rust_code_obfuscator::crypto::decrypt_u32(
+                    &self.#name.0, &self.#name.1,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("decryption failed")
             },
             _ => quote! {
-                #name: rust_code_obfuscator::crypto::decrypt_string(&self.#name.0, &self.#name.1, AES_KEY)
+                #name: rust_code_obfuscator::crypto::decrypt_string(
+                    &self.#name.0, &self.#name.1,
+                    &rust_code_obfuscator::crypto::default_key()
+                ).expect("decryption failed")
             },
         }
     });
 
     let expanded = quote! {
-        use rust_code_obfuscator::crypto::{AES_KEY};
-
         #[derive(Clone)]
         #vis struct #obf_name {
             #(#obf_fields),*
