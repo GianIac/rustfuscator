@@ -623,9 +623,7 @@ dependencies = [
 
 [[package]]
 name = "obfuscator_derive"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "811174c8ca5cec71b88951861d92913458f8e9b6a5ba9f1f8e6af22afbc08631"
+version = "0.2.5"
 dependencies = [
  "aes-gcm",
  "generic-array 1.2.0",
@@ -638,6 +636,8 @@ dependencies = [
 [[package]]
 name = "obfuscator_derive"
 version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3aaff52c6841e86889aa1c1249d021ff69df8f46447e40b0de99d9bf5abff0ae"
 dependencies = [
  "aes-gcm",
  "generic-array 1.2.0",
@@ -840,27 +840,28 @@ dependencies = [
  "aes",
  "aes-gcm",
  "cryptify",
- "obfuscator_derive 0.2.4",
+ "obfuscator_derive 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.9.2",
- "rust_code_obfuscator_core 0.2.4",
+ "rust_code_obfuscator_core 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rust_code_obfuscator_core"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a20f78d5f28a81f6426936afb569a30afa090694217d7d1770ab8f5283cf1381"
+version = "0.2.5"
 dependencies = [
  "aead",
  "aes",
  "aes-gcm",
  "cryptify",
  "rand 0.9.2",
+ "zeroize",
 ]
 
 [[package]]
 name = "rust_code_obfuscator_core"
 version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c238eada30fc4718b728a8daaa7a6abfdadb5da11a825d63047004313dce8fbf"
 dependencies = [
  "aead",
  "aes",
