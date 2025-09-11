@@ -97,7 +97,10 @@ This layered model means Rustfuscator can build upon proven cryptographic founda
 ### 4.1 String Encryption (AES-GCM)
 
 * Encrypts string literals at compile-time via `aes-gcm`
-* AES key is statically embedded via `AES_KEY`
+* AES-256 key is provided at **build time** (via `build.rs`)
+  - If `OBFUSCATOR_KEY_HEX` is set (64 hex chars), that key is used  
+  - Otherwise, a random key is generated per build
+* No hardcoded `AES_KEY` in source
 * Generates `(Vec<u8>, [u8; 12])` ciphertexts with a random nonce
 * `obfuscate_string!(...)` expands to encrypted buffers with runtime decryption
 
@@ -248,8 +251,8 @@ obfuscator_cli --input ./mycrate --output ./mycrate_obf --as-project --format
 * Identifier renaming obscures semantic meaning
 
 ### Limitations
-
-* AES key is static (can be extracted with effort)
+* AES key is embedded in the build artifact (not in source).  
+  A motivated adversary with full binary access may still recover it with effort.
 * No runtime behavior modification
 * No memory-level or control-flow graph integrity protections (yet)
 
@@ -284,3 +287,4 @@ MIT License
 * https://crates.io/crates/rust_code_obfuscator
 * [https://lib.rs/crates/rust\_code\_obfuscator](https://lib.rs/crates/rust_code_obfuscator)
 * https://www.cs.auckland.ac.nz/~cthombor/Pubs/01027797a.pdf
+
