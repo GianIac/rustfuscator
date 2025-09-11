@@ -15,7 +15,7 @@ This crate is the **core logic** behind [Rustfuscator](https://github.com/giania
 
 It is **not** a standalone crate — it powers the procedural macros and CLI-level abstractions of the [Rustfuscator project](https://github.com/gianiac/rustfuscator).
 
-### Key management
+### Note about Key management for crypto.rs
 
 Now uses build-time key management (no hardcoded keys). The key is injected via `build.rs`:
 - If `OBFUSCATOR_KEY_HEX` (64 hex chars) is set, that value is used.
