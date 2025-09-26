@@ -1,25 +1,24 @@
+use crate::config::ObfuscateConfig;
+use anyhow::Result;
+use globset::{Glob, GlobSetBuilder};
+use prettyplease;
+use quote::{quote, quote_spanned};
+use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::Result;
-use quote::{quote, quote_spanned};
 use syn::{
-    parse_file, visit_mut::VisitMut,
-    Expr, ExprLit, Lit,
-    ExprIf, ExprMatch, ExprLoop, ExprWhile, ExprForLoop, Stmt,
-    Ident, ItemFn, PatIdent,
+    parse_file, visit_mut::VisitMut, Expr, ExprForLoop, ExprIf, ExprLit, ExprLoop, ExprMatch,
+    ExprWhile, Ident, ItemFn, Lit, PatIdent, Stmt,
 };
-use prettyplease;
-use globset::{Glob, GlobSetBuilder};
-use rust_code_obfuscator_core::utils::generate_obf_suffix;
-use crate::config::ObfuscateConfig;
 
 pub fn process_file(
     path: &Path,
     relative_path: &Path,
     config: &ObfuscateConfig,
     json_output: bool,
-) -> Result<(String, bool, Option<String>)> { // (transformed, changed, before_for_diff)
+) -> Result<(String, bool, Option<String>)> {
+    // (transformed, changed, before_for_diff)
     let source = fs::read_to_string(path)?;
 
     let file_name = relative_path.to_string_lossy();
@@ -60,8 +59,16 @@ pub fn process_file(
     let mut transformer = ObfuscationTransformer {
         min_string_length: config.obfuscation.min_string_length,
         ignore_strings: config.obfuscation.ignore_strings.clone(),
-        rename_identifiers: config.identifiers.as_ref().map(|id| id.rename).unwrap_or(false),
-        preserve_idents: config.identifiers.as_ref().and_then(|id| id.preserve.clone()).unwrap_or_default(),
+        rename_identifiers: config
+            .identifiers
+            .as_ref()
+            .map(|id| id.rename)
+            .unwrap_or(false),
+        preserve_idents: config
+            .identifiers
+            .as_ref()
+            .and_then(|id| id.preserve.clone())
+            .unwrap_or_default(),
         obfuscate_strings: config.obfuscation.strings,
         obfuscate_flow: config.obfuscation.control_flow,
         skip_attributes: config.obfuscation.skip_attributes.unwrap_or(false),
@@ -105,7 +112,9 @@ pub fn process_file(
             "changed": changed
         });
 
-        let json_path = PathBuf::from("obf_json").join(relative_path).with_extension("json");
+        let json_path = PathBuf::from("obf_json")
+            .join(relative_path)
+            .with_extension("json");
         fs::create_dir_all(json_path.parent().unwrap())?;
         fs::write(&json_path, serde_json::to_string_pretty(&json_payload)?)?;
         println!("✓ Saved transformed JSON to {}", json_path.display());
@@ -133,19 +142,31 @@ impl VisitMut for ObfuscationTransformer {
             return syn::visit_mut::visit_expr_mut(self, expr);
         }
 
-        if let Expr::Lit(ExprLit { lit: Lit::Str(ref lit_str), .. }) = expr {
+        if let Expr::Lit(ExprLit {
+            lit: Lit::Str(ref lit_str),
+            ..
+        }) = expr
+        {
             let value = lit_str.value();
 
-            if self.min_string_length.map_or(false, |min| value.len() < min) {
+            if self
+                .min_string_length
+                .map_or(false, |min| value.len() < min)
+            {
                 return;
             }
 
-            if self.ignore_strings.as_ref().map_or(false, |list| list.contains(&value)) {
+            if self
+                .ignore_strings
+                .as_ref()
+                .map_or(false, |list| list.contains(&value))
+            {
                 return;
             }
 
             let span = lit_str.span();
-            let wrapped: Expr = syn::parse2(quote_spanned! {span=> obfuscate_string!(#value) }).unwrap();
+            let wrapped: Expr =
+                syn::parse2(quote_spanned! {span=> obfuscate_string!(#value) }).unwrap();
             *expr = wrapped;
         }
 
@@ -266,19 +287,206 @@ impl VisitMut for ObfuscationTransformer {
 mod tests {
     use super::*;
     use crate::config::ObfuscationSection;
-    fn cfg(strings: bool, flow: bool) -> ObfuscateConfig {
+    use tempfile::TempDir;
+    fn cfg(
+        strings: bool,
+        min_str_len: Option<usize>,
+        ignore_strings: Option<Vec<String>>,
+        flow: bool,
+        skip_files: Option<Vec<String>>,
+        skip_attributes: Option<bool>,
+    ) -> ObfuscateConfig {
         ObfuscateConfig {
             obfuscation: ObfuscationSection {
                 strings,
-                min_string_length: None,
-                ignore_strings: None,
+                min_string_length: min_str_len,
+                ignore_strings: ignore_strings,
                 control_flow: flow,
-                skip_files: None,
-                skip_attributes: Some(false),
+                skip_files: skip_files,
+                skip_attributes: skip_attributes,
             },
             identifiers: None,
             include: None,
         }
+    }
+
+    fn obf_transformer(
+        min_str_len: Option<usize>,
+        ignore_strings: Option<Vec<String>>,
+        rename_identifiers: bool,
+        obfuscate_strings: bool,
+        obfuscate_flow: bool,
+        skip_attributes: bool,
+    ) -> ObfuscationTransformer {
+        ObfuscationTransformer {
+            min_string_length: min_str_len,
+            ignore_strings: ignore_strings,
+            rename_identifiers: rename_identifiers,
+            preserve_idents: vec![],
+            obfuscate_strings: obfuscate_strings,
+            obfuscate_flow: obfuscate_flow,
+            skip_attributes: skip_attributes,
+            obfuscated_vars: HashSet::new(),
+        }
+    }
+
+    /// Returns `path` and `relative_path` to a file created in a temporary directory.
+    fn create_rs_file(src: &'static str) -> (TempDir, PathBuf, PathBuf) {
+        let file_name = "lib.rs";
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(file_name);
+        let relative_path = std::path::Path::new(file_name).to_path_buf();
+        std::fs::write(&path, src).unwrap();
+        return (dir, path, relative_path);
+    }
+
+    fn get_str_lit_expression(str: &'static str) -> Expr {
+        let literal = ExprLit {
+            attrs: vec![],
+            lit: Lit::Str(syn::LitStr::new(str, proc_macro2::Span::call_site())),
+        };
+        Expr::Lit(literal)
+    }
+
+    #[test]
+    fn cfg_strings_on() {
+        let src = r#"pub const TEST: &str = "test";"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(true, None, None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        let mut lines = out.lines();
+        let line_1 = lines.next().unwrap();
+        let line_2 = lines.next().unwrap();
+        assert!(line_1 == r#"use rust_code_obfuscator::obfuscate_string;"#);
+        assert!(line_2 == r#"pub const TEST: &str = obfuscate_string!("test");"#);
+    }
+
+    #[test]
+    fn cfg_strings_off() {
+        let src = r#"pub const TEST: &str = "test";"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(false, None, None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        let mut lines = out.lines();
+        let line_1 = lines.next().unwrap();
+        let line_2 = lines.next();
+        assert!(line_1 == src);
+        assert!(line_2 == None);
+    }
+
+    #[test]
+    fn cfg_set_min_string_length() {
+        let str_len_limit: Option<usize> = Some(5);
+        let src = r#"pub const TEST_1: &str = "long enough test";
+pub const TEST_2: &str = "test";
+"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(true, str_len_limit, None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        let mut lines = out.lines();
+        let _ = lines.next();
+        let line_2 = lines.next().unwrap();
+        let line_3 = lines.next().unwrap();
+        assert!(line_2 == r#"pub const TEST_1: &str = obfuscate_string!("long enough test");"#);
+        assert!(line_3 == r#"pub const TEST_2: &str = "test";"#);
+    }
+
+    #[test]
+    fn cfg_skip_files() {
+        let src = r#"pub const TEST: &str = "test";"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let skipped_files = Some(vec![String::from(relative_path.to_str().unwrap())]);
+
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(true, None, None, false, skipped_files, None),
+            false,
+        )
+        .unwrap();
+        let mut lines = out.lines();
+        let line_1 = lines.next().unwrap();
+        assert!(line_1 == src);
+    }
+
+    #[test]
+    fn cfg_skip_atributes() {
+        let src = r#"//! Crate docs
+pub const TEST: &str = "test";"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(true, None, None, false, None, Some(true)),
+            false,
+        )
+        .unwrap();
+        let mut lines = out.lines();
+        let line_1 = lines.next().unwrap();
+        assert!(line_1 == r#"//! Crate docs"#);
+    }
+
+    #[test]
+    fn cfg_flow_of() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(false, None, None, false, None, None),
+            false,
+        )
+        .unwrap();
+        assert_eq!(out.trim(), src.trim());
+    }
+
+    #[test]
+    fn cfg_flow_on() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(false, None, None, true, None, None),
+            false,
+        )
+        .unwrap();
+        let mut lines = out.lines();
+        let line_1: &str = lines.next().unwrap();
+        let _line_2: &str = lines.next().unwrap();
+        let _line_3: &str = lines.next().unwrap();
+        let line_4: &str = lines.next().unwrap();
+        assert_eq!(line_1, r#"use rust_code_obfuscator::obfuscate_flow;"#);
+        assert_eq!(line_4.trim(), r#"obfuscate_flow!();"#);
     }
 
     #[test]
@@ -292,12 +500,81 @@ pub fn hello() -> &'static str { "hi" }
         let p = dir.path().join("lib.rs");
         std::fs::write(&p, src).unwrap();
 
-        let (out, _changed, _before) =
-            super::process_file(&p, std::path::Path::new("lib.rs"), &cfg(true, false), false).unwrap();
+        let (out, _changed, _before) = super::process_file(
+            &p,
+            std::path::Path::new("lib.rs"),
+            &cfg(true, None, None, false, None, Some(false)),
+            false,
+        )
+        .unwrap();
 
         let trimmed = out.trim_start();
         let first = trimmed.chars().next().unwrap();
-        assert!(first == '#' || first == '/', "inner attrs must be first:\n{out}");
-        assert!(!trimmed.starts_with("use "), "never `use` before inner attrs:\n{out}");
+        println!("out: {}", out);
+        println!("trimmed: {}", out);
+        assert!(
+            first == '#' || first == '/',
+            "inner attrs must be first:\n{out}"
+        );
+        assert!(
+            !trimmed.starts_with("use "),
+            "never `use` before inner attrs:\n{out}"
+        );
+    }
+
+    #[test]
+    fn obf_transformer_test_visit_expr() {
+        let lit_too_short = "foo";
+        let lit_long_enough = "foo test";
+        let lit_to_ignore = "ignore me";
+
+        let cfg_min_len = lit_too_short.len() + 1;
+        let cfg_ignore = vec![String::from(lit_to_ignore)];
+
+        let mut expr_1 = get_str_lit_expression(lit_too_short);
+        let mut expr_2 = get_str_lit_expression(lit_long_enough);
+        let mut expr_3 = get_str_lit_expression(lit_to_ignore);
+
+        let mut transformer = obf_transformer(
+            Some(cfg_min_len),
+            Some(cfg_ignore),
+            false,
+            true,
+            false,
+            false,
+        );
+
+        transformer.visit_expr_mut(&mut expr_1);
+        transformer.visit_expr_mut(&mut expr_2);
+        transformer.visit_expr_mut(&mut expr_3);
+
+        match &expr_1 {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(lit_str),
+                ..
+            }) => {
+                assert_eq!(lit_str.value(), lit_too_short);
+            }
+            _ => panic!("expr_1 must be a string literal"),
+        }
+
+        match &expr_2 {
+            Expr::Macro(expr_macro) => {
+                let mac = &expr_macro.mac;
+                assert_eq!(mac.tokens.to_string().trim_matches('"'), lit_long_enough);
+                assert_eq!(mac.path.segments.last().unwrap().ident, "obfuscate_string");
+            }
+            _ => panic!("expr_2 must be a macro"),
+        }
+
+        match &expr_3 {
+            Expr::Lit(ExprLit {
+                lit: Lit::Str(lit_str),
+                ..
+            }) => {
+                assert_eq!(lit_str.value(), lit_to_ignore);
+            }
+            _ => panic!("expr_3 must be a string literal"),
+        }
     }
 }
