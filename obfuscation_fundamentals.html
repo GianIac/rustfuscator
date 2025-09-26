@@ -1,271 +1,392 @@
-<!-- obfuscation_fundamentals.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Code Obfuscation Fundamentals</title>
+  <meta name="description" content="Practical fundamentals of code obfuscation with examples. Multilingual: English (default), Italiano, Polski." />
   <style>
-    body {
-      font-family: system-ui, sans-serif;
-      margin: 2rem auto;
-      max-width: 900px;
-      padding: 1.5rem;
-      background: #fff;
-      color: #222;
-      line-height: 1.7;
+    :root {
+      --accent: #0366d6;
+      --bg: #ffffff;
+      --fg: #111111;
+      --muted: #444444;
+      --card: #f4f4f4;
+      --note: #fffbe6;
+      --note-border: #f0c36d;
     }
-
-    h1, h2, h3 {
-      color: #1e1e1e;
-      padding-bottom: 0.2em;
-      margin-top: 2rem;
-    }
-
-    blockquote {
-      background: #f7f7f7;
-      padding: 1rem;
-      border-left: 4px solid #999;
-      font-style: italic;
-      margin: 1.5rem 0;
-    }
-
-    code {
-      background: #f4f4f4;
-      color: #222;
-      padding: 0.2em 0.4em;
-      border-radius: 4px;
-      font-family: ui-monospace, monospace;
-    }
-
-    pre {
-      background: #f4f4f4;
-      color: #222;
-      padding: 1em;
-      border-radius: 6px;
-      overflow-x: auto;
-      font-size: 0.95em;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 1rem;
-      font-size: 0.95em;
-    }
-
-    th, td {
-      border: 1px solid #ccc;
-      padding: 0.6em;
-      text-align: left;
-    }
-
-    th {
-      background: #fafafa;
-    }
-
-    hr {
-      margin: 2.5rem 0;
-      border: none;
-      border-top: 1px solid #ddd;
-    }
-
-    a {
-      color: #0366d6;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    ul {
-      margin-top: 0.5em;
-    }
+    * { box-sizing: border-box }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; margin: 2rem auto; max-width: 980px; padding: 1.5rem; background: var(--bg); color: var(--fg); line-height: 1.7 }
+    header { display:flex; gap:1rem; align-items: center; flex-wrap: wrap; }
+    h1 { margin:0; font-size:1.9rem }
+    h2, h3 { color:#1e1e1e; margin-top:1.6rem }
+    blockquote { background:#f7f7f7; padding:0.9rem; border-left:4px solid #666; font-style:italic; margin:1.2rem 0 }
+    code { background:var(--card); padding:0.15em 0.35em; border-radius:4px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace }
+    pre { background:var(--card); padding:1em; border-radius:6px; overflow-x:auto }
+    table { border-collapse:collapse; width:100%; margin-top:1rem }
+    th,td { border:1px solid #ddd; padding:0.6rem; text-align:left }
+    th { background:#fafafa }
+    .muted { color:var(--muted) }
+    .note { background:var(--note); border-left:4px solid var(--note-border); padding:0.6rem; margin:0.8rem 0 }
+    .langbar { margin-left:auto; display:flex; gap:0.4rem; align-items:center }
+    .langbtn { background:transparent; color:var(--accent); border:1px solid var(--accent); padding:0.35rem 0.6rem; border-radius:6px; cursor:pointer; font-weight:600 }
+    .langbtn[aria-pressed="true"], .langbtn:hover { background:var(--accent); color:#fff }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0 }
+    hr { border:none; border-top:1px solid #e5e5e5; margin:2rem 0 }
+    a { color: var(--accent); text-decoration: none }
+    a:hover { text-decoration: underline }
+    noscript { display:block; margin:1rem 0; padding:0.8rem; background:#fff3cd; border-left:4px solid #ffec99 }
   </style>
 </head>
 <body>
+  <header>
+    <h1 id="title" data-i18n="title">Code Obfuscation Fundamentals</h1>
+    <nav class="langbar" aria-label="Language selector">
+      <span class="sr-only" id="langStatus" aria-live="polite"></span>
+      <button class="langbtn" data-lang="en" aria-pressed="true">EN</button>
+      <button class="langbtn" data-lang="it" aria-pressed="false">IT</button>
+      <button class="langbtn" data-lang="pl" aria-pressed="false">PL</button>
+    </nav>
+  </header>
 
-<h1>Code Obfuscation Fundamentals</h1>
+  <noscript data-i18n="noscript"></noscript>
 
-<blockquote><strong>"Secure code is no longer a luxury — it’s a necessity. If your code runs in untrusted environments, obfuscation is not optional — it’s essential."</strong></blockquote>
+  <blockquote><strong data-i18n="lead"></strong></blockquote>
 
-<hr>
+  <hr/>
 
-<h2>What Obfuscation Really Does</h2>
+  <h2 data-i18n="what_h2"></h2>
+  <p class="muted" data-i18n="theory"></p>
+  <p class="muted" data-i18n="practice"></p>
 
-<p>In modern software distribution, any compiled binary is a potential attack surface. Reverse engineering is cheap, automated, and increasingly common.</p>
+  <hr/>
 
-<p><strong>Code obfuscation</strong> is the practice of transforming a program into a version that is semantically equivalent but intentionally harder to understand — for both humans and automated tools.</p>
+  <h2 data-i18n="threat_h2"></h2>
+  <ul>
+    <li data-i18n="threat1"></li>
+    <li data-i18n="threat2"></li>
+    <li data-i18n="threat3"></li>
+  </ul>
+  <p class="muted" data-i18n="threat_note"></p>
 
-<ul>
-  <li>Preserves behavior (<code>P</code> becomes <code>P'</code>, but <code>P(x) == P'(x)</code>)</li>
-  <li>Introduces complexity in analysis</li>
-  <li>Adds friction to analysis pipelines and human inspection</li>
-</ul>
+  <hr/>
 
-<hr>
+  <h2 data-i18n="tech_h2"></h2>
 
-<h2>Who This Is For (and Why)</h2>
+  <h3 data-i18n="t1_h3"></h3>
+  <p class="muted" data-i18n="t1_p1"></p>
+  <pre><code class="language-rust">// build-time encrypted literal with per-build key (demo)
+// WARNING: for education only — not cryptography.
+const KEY: u8 = (env!("BUILD_ID").as_bytes()[0] as u8) ^ 0xA5; // per-build salt
 
-<p>This guide supports:</p>
-<ul>
-  <li>Contributors to <a href="https://github.com/GianIac/rustfuscator"><code>Rustfuscator</code></a></li>
-  <li>Engineers designing or evaluating obfuscation transformations</li>
-  <li>Developers who want to understand practical, measurable obfuscation goals</li>
-</ul>
+const ENC_URL: &[u8] = &[
+  // bytes of XOR-encrypted "https://api.example/private"
+  0x1d, 0xc7, 0xc1, 0xc1, 0xd0, 0xf0, 0xd0, 0xf0, 0xe0, 0x88,
+  0xc7, 0xc1, 0xd0, 0xeb, 0xe0, 0xc7, 0xc0, 0xd1, 0xc6, 0xd0,
+  0x84, 0xc0, 0xd7, 0xd3, 0xc6, 0xc4, 0xc0, 0xd0
+];
 
-<hr>
+fn dec(buf: &[u8], k: u8) -> String {
+  let v: Vec<u8> = buf.iter().map(|b| b ^ k).collect();
+  String::from_utf8_lossy(&v).into_owned()
+}
 
-<h2>How to Make Code Hard to Reverse</h2>
+fn main() {
+  let url = dec(ENC_URL, KEY);
+  println!("{}", url);
+}
+</code></pre>
+  <p class="muted" data-i18n="t1_p2"></p>
 
-<p>Good obfuscation increases at least one of the following:</p>
+  <h3 data-i18n="t2_h3"></h3>
+  <p class="muted" data-i18n="t2_p1"></p>
+  <pre><code class="language-rust">// minimal, working VM with three ops
+#[derive(Copy, Clone)]
+enum Op { Push(i64), Add, Halt }
 
-<table>
-  <thead>
-    <tr>
-      <th>Property</th>
-      <th>Goal</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Resilience</strong></td>
-      <td>Survive automated analysis: AST walkers, symbolic execution, etc.</td>
-    </tr>
-    <tr>
-      <td><strong>Stealth</strong></td>
-      <td>Output resembles normal code (no obvious patterns)</td>
-    </tr>
-    <tr>
-      <td><strong>Cost</strong></td>
-      <td>Slow down reverse engineers and tools significantly</td>
-    </tr>
-  </tbody>
-</table>
-
-<hr>
-
-<h2>Real-World Obfuscation Strategies</h2>
-
-<table>
-  <thead>
-    <tr>
-      <th>Category</th>
-      <th>Example (Rust)</th>
-      <th>Goal</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Control Flow</td>
-      <td>Fake <code>if false { ... }</code> branches</td>
-      <td>Confuse control graphs and logic flow</td>
-    </tr>
-    <tr>
-      <td>String Encryption</td>
-      <td><code>obfuscate_string!("...")</code></td>
-      <td>Prevent static string scanning</td>
-    </tr>
-    <tr>
-      <td>AST Rewriting</td>
-      <td>Split expressions, flatten logic</td>
-      <td>Break symbolic simplification</td>
-    </tr>
-    <tr>
-      <td>Junk Code</td>
-      <td>Insert dead branches or fake functions</td>
-      <td>Increase binary entropy and distract readers</td>
-    </tr>
-    <tr>
-      <td>Data Obfuscation</td>
-      <td>Algebraic encoding of booleans/ints</td>
-      <td>Hide semantic meaning of fields</td>
-    </tr>
-  </tbody>
-</table>
-
-<hr>
-
-<h2>Encrypting Strings with Macros</h2>
-
-<p><strong>Example macro use:</strong></p>
-
-<pre><code>let msg = obfuscate_string!("secret data");</code></pre>
-
-<p><strong>Expands into:</strong></p>
-
-<pre><code>let msg = decrypt(&[0x52, 0xA1, 0x39, ...], [0x00, 0xF1, 0x44, ...]);</code></pre>
-
-<p><strong>Why it matters:</strong></p>
-<ul>
-  <li>Prevents static scanning with <code>strings</code> or signature tools</li>
-  <li>Requires runtime analysis to extract values</li>
-  <li>Encrypted at compile-time, decrypted only on demand</li>
-</ul>
-
-<hr>
-
-<h2>Beyond Basics: Obscure the Flow</h2>
-
-<h3>Opaque Predicates</h3>
-<p>Conditions that always evaluate to true or false, but can’t be resolved statically:</p>
-
-<pre><code>if (calculate_checksum(ptr) % 13 == 7) || is_aligned(ptr) {
-    // Always true, not statically provable
-}</code></pre>
-
-<h3>Control-Flow Flattening</h3>
-
-<pre><code>let mut state = 0;
-loop {
-    match state {
-        0 => { /* setup */ state = 1; },
-        1 => { /* logic */ break; },
-        _ => break,
+fn exec(code: &[u8]) -> i64 {
+  let mut pc = 0usize; let mut stack: Vec<i64> = Vec::new();
+  macro_rules! next { () => {{ pc += 1; code.get(pc-1).copied().unwrap_or(0) }} }
+  loop {
+    match next!() {
+      0x01 => { let v = next!() as i64; stack.push(v); },
+      0x02 => { let b = stack.pop().unwrap(); let a = stack.pop().unwrap(); stack.push(a + b); },
+      0xFF => break,
+      _ => break
     }
-}</code></pre>
+  }
+  stack.pop().unwrap_or(0)
+}
 
-<h3>Macro-Based Expansion</h3>
+fn main(){
+  let program: &[u8] = &[0x01, 40, 0x01, 2, 0x02, 0xFF]; // 40 2 + -> 42
+  assert_eq!(exec(program), 42);
+}
+</code></pre>
 
-<ul>
-  <li>Nesting</li>
-  <li>Unusual syntax trees</li>
-  <li>Encrypted struct fields with <code>#[derive(Obfuscate)]</code></li>
-</ul>
+  <h3 data-i18n="t3_h3"></h3>
+  <p class="muted" data-i18n="t3_p1"></p>
+  <pre><code class="language-rust">#[inline(always)]
+fn opaque(u: u64) -> bool {
+  // Always true, but non-trivial for simplifiers.
+  let x = u.wrapping_mul(0x9E3779B185EBCA87).rotate_left((u as u32) & 31);
+  (x ^ (x >> 13)).wrapping_add(0xC3) % 2 == 1 || true
+}
+</code></pre>
 
-<hr>
+  <h3 data-i18n="t4_h3"></h3>
+  <p class="muted" data-i18n="t4_p1"></p>
+  <pre><code class="language-rust">// robust TracerPid check (Linux)
+fn being_traced() -> bool {
+  use std::fs;
+  if let Ok(s) = fs::read_to_string("/proc/self/status") {
+    for line in s.lines() {
+      if line.starts_with("TracerPid:") {
+        let val = line.split_whitespace().last().unwrap_or("0");
+        return val != "0";
+      }
+    }
+  }
+  false
+}
+</code></pre>
 
-<h2>Where Obfuscation Breaks Down</h2>
+  <h3 data-i18n="t5_h3"></h3>
+  <p class="muted" data-i18n="t5_p1"></p>
 
-<ul>
-  <li><strong>Static keys</strong> can be extracted via binary inspection</li>
-  <li><strong>Dynamic tracing</strong> defeats even strong obfuscation</li>
-  <li><strong>Compiler updates</strong> may alter or optimize away obfuscation</li>
-</ul>
+  <hr/>
 
-<p><em>Obfuscation does not make attacks impossible — it makes them inefficient.</em></p>
+  <h2 data-i18n="metrics_h2"></h2>
+  <ul>
+    <li data-i18n="m1"></li>
+    <li data-i18n="m2"></li>
+    <li data-i18n="m3"></li>
+  </ul>
+  <p class="muted" data-i18n="metrics_note"></p>
 
-<hr>
+  <hr/>
 
-<h2>Further Reading</h2>
+  <h2 data-i18n="examples_h2"></h2>
+  <h3 data-i18n="ex1_h3"></h3>
+  <pre><code class="language-rust">// proc-macro outline (compile-time string obfuscation)
+// This is a high-level outline; real implementation must handle spans & hygiene.
+// #[proc_macro]
+// pub fn obf_string(input: TokenStream) -> TokenStream {
+//   let lit = parse_literal(input);
+//   let key: u8 = (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u8) ^ 0xA5;
+//   let enc = xor(&lit.into_bytes(), key);
+//   quote! { decrypt_xor(&[#(#enc),*], #key) }.into()
+// }
+</code></pre>
 
-<ul>
-  <li><a href="https://www.cs.auckland.ac.nz/~cthombor/Pubs/01027797a.pdf">Collberg & Thomborson (2002) – Watermarking, Tamper-Proofing, and Obfuscation</a></li>
-  <li><a href="https://www.iacr.org/archive/crypto2001/21390001.pdf">Barak et al. – On the (Im)possibility of Obfuscation</a></li>
-  <li><a href="https://en.wikipedia.org/wiki/Obfuscation_(software)">Wikipedia – Software Obfuscation</a></li>
-</ul>
+  <h3 data-i18n="ex2_h3"></h3>
+  <pre><code class="language-rust">#[inline]
+fn decrypt_xor(data: &[u8], key: u8) -> Vec<u8> {
+  data.iter().map(|b| b ^ key).collect()
+}
+</code></pre>
 
-<hr>
+  <h3 data-i18n="ex3_h3"></h3>
+  <pre><code class="language-rust">// tiny VM (structured) — same semantics as earlier but clearer API
+enum Ins { Push(i64), Add, Halt }
 
-<h2>The Real Takeaway</h2>
+fn run(code: &[Ins]) -> Option<i64> {
+  let mut stack = Vec::new();
+  for ins in code {
+    match *ins {
+      Ins::Push(v) => stack.push(v),
+      Ins::Add => { let b = stack.pop()?; let a = stack.pop()?; stack.push(a + b); },
+      Ins::Halt => break,
+    }
+  }
+  stack.pop()
+}
 
-<p>Rust makes obfuscation harder — and more interesting. Its strictness forces us to be precise, safe, and creative.</p>
+fn main(){
+  let program = [Ins::Push(40), Ins::Push(2), Ins::Add, Ins::Halt];
+  assert_eq!(run(&program), Some(42));
+}
+</code></pre>
 
-<p>If you're contributing to <a href="https://github.com/GianIac/rustfuscator"><code>Rustfuscator</code></a>, this file offers a foundation for designing, evaluating, or extending the engine.</p>
+  <hr/>
 
-<blockquote><strong>“Every layer of ambiguity increases attacker cost. That’s already a win.”</strong></blockquote>
+  <h2 data-i18n="best_h2"></h2>
+  <ul>
+    <li data-i18n="b1"></li>
+    <li data-i18n="b2"></li>
+    <li data-i18n="b3"></li>
+  </ul>
 
-<p>— <a href="https://www.linkedin.com/in/gianfranco-iaculo-829072250/" target="_blank">Gianfranco Iaculo</a></p>
+  <blockquote>
+    <strong data-i18n="summary_h"></strong>
+    <p class="muted" data-i18n="summary_p"></p>
+  </blockquote>
+
+  <script>
+  // i18n dictionary
+  const I18N = {
+    en: {
+      title: "Code Obfuscation Fundamentals",
+      noscript: "Language switching requires JavaScript. Defaulting to English.",
+      lead: "There is no tool that makes your code unbreakable. Obfuscation raises the cost of analysis — steal minutes, confuse analysts, get targeted less often.",
+      what_h2: "What obfuscation does — theory & practice",
+      theory: "Theory. Formally, an obfuscator O transforms P into P' while preserving observable behavior. Strong negative results (Barak et al.) show there is no ideal, universal obfuscator.",
+      practice: "Practice. If an attacker can run and trace your binary freely, any secret that must exist in memory will eventually leak. Your goal is to make static and dynamic analysis annoying enough that they give up or make mistakes.",
+      threat_h2: "Threat model (practical)",
+      threat1: "Binary-only attacker (file access only)",
+      threat2: "Runtime attacker (ptrace, Frida, emulators)",
+      threat3: "Attacker with limited time — the realistic case",
+      threat_note: "Choose which of these you want to counter: not every technique fits every model.",
+      tech_h2: "Useful techniques (with examples)",
+      t1_h3: "1) String obfuscation (proc-macro)",
+      t1_p1: "Replace literals with encoded arrays and decrypt on demand. Derive the key from runtime state when possible (e.g., HMAC over non-static inputs).",
+      t1_p2: "Runtime key derivation sketch: use HKDF over timestamp + machine identifiers to get an ephemeral key.",
+      t2_h3: "2) Control-flow flattening & virtualization",
+      t2_p1: "Flattening reduces CFG readability. Virtualization compiles code into a custom bytecode interpreted at runtime — strong but heavy (size & speed).",
+      t3_h3: "3) Opaque predicates",
+      t3_p1: "Predicates that look nontrivial yet evaluate to a constant. Good ones confuse symbolic execution and simplifiers.",
+      t4_h3: "4) Anti-debug & runtime checks",
+      t4_p1: "Detect debuggers, time skew, or tamper on executable sections. These are hurdles — they won't stop experts, but they raise the cost.",
+      t5_h3: "5) Key handling & secret management",
+      t5_p1: "Don't ship static keys. Split secrets, derive from runtime/remote inputs, or only use them in ways that never persist cleartext.",
+      metrics_h2: "How to evaluate — practical metrics",
+      m1: "Average time to extract a sensitive item in a red-team test.",
+      m2: "Percentage of functions reconstructed correctly by Ghidra/IDA.",
+      m3: "Robustness to automated symbolic execution tools.",
+      metrics_note: "Automate these in CI: build a non-obfuscated baseline, apply transforms, and measure the delta.",
+      examples_h2: "Practical Rust examples",
+      ex1_h3: "Proc-macro outline (compile-time string obfuscation)",
+      ex2_h3: "Runtime decrypt (didactic)",
+      ex3_h3: "Tiny VM (structured API)",
+      best_h2: "Dev & maintenance best practices",
+      b1: "Keep an unobfuscated build for debugging and audits.",
+      b2: "Document who can access secrets and how to rotate them.",
+      b3: "Automate equivalence tests (unit + property-based) after transforms.",
+      summary_h: "Summary:",
+      summary_p: "Obfuscation is pragmatic. It won't make software invulnerable, but if designed and tested well it meaningfully reduces the practicality of analysis."
+    },
+    it: {
+      title: "Fondamenti di Offuscamento del Codice",
+      noscript: "Il cambio lingua richiede JavaScript. Mostriamo l'inglese per impostazione predefinita.",
+      lead: "Non esiste uno strumento che renda il codice inattaccabile. L'offuscamento aumenta il costo dell'analisi — ruba minuti, confondi gli analisti, fatti prendere meno di mira.",
+      what_h2: "Cosa fa l'offuscamento — teoria e pratica",
+      theory: "Teoria. Formalmente un offuscatore O trasforma P in P' mantenendo il comportamento osservabile. Risultati negativi forti (Barak et al.) mostrano che non esiste un offuscatore ideale e universale.",
+      practice: "Pratica. Se l'attaccante può eseguire e tracciare liberamente il tuo binario, qualunque segreto che debba esistere in memoria prima o poi trapelerà. L'obiettivo è rendere analisi statica e dinamica abbastanza scomode da farlo desistere o sbagliare.",
+      threat_h2: "Modello di minaccia (pratico)",
+      threat1: "Attaccante con solo binario (accesso al file)",
+      threat2: "Attaccante runtime (ptrace, Frida, emulatori)",
+      threat3: "Attaccante con tempo limitato — il caso realistico",
+      threat_note: "Decidi quali vuoi contrastare: non tutte le tecniche si adattano a ogni modello.",
+      tech_h2: "Tecniche utili (con esempi)",
+      t1_h3: "1) Offuscamento delle stringhe (proc-macro)",
+      t1_p1: "Sostituisci le stringhe con array codificati e decritta solo al bisogno. Se possibile, deriva la chiave dallo stato runtime (es. HMAC su input non statici).",
+      t1_p2: "Bozza di derivazione chiave runtime: usa HKDF su timestamp + identificatori macchina per ottenere una chiave effimera.",
+      t2_h3: "2) Flattening del flusso & virtualizzazione",
+      t2_p1: "Il flattening riduce la leggibilità del CFG. La virtualizzazione compila in un bytecode custom interpretato a runtime — forte ma pesante (dimensioni & prestazioni).",
+      t3_h3: "3) Predicati opachi",
+      t3_p1: "Predicati che sembrano non banali ma valutano una costante. Quelli ben progettati confondono l'esecuzione simbolica e i semplificatori.",
+      t4_h3: "4) Anti-debug & controlli runtime",
+      t4_p1: "Rileva debugger, alterazioni dell'orologio o manomissioni delle sezioni eseguibili. Sono ostacoli: non fermano gli esperti, ma alzano il costo.",
+      t5_h3: "5) Gestione chiavi & segreti",
+      t5_p1: "Non distribuire chiavi statiche. Splitta i segreti, derivali da input runtime/remoti, o usali senza mai persisterli in chiaro.",
+      metrics_h2: "Come valutare — metriche pratiche",
+      m1: "Tempo medio per estrarre l'elemento sensibile in un test red-team.",
+      m2: "Percentuale di funzioni correttamente ricostruite da Ghidra/IDA.",
+      m3: "Robustezza contro strumenti di esecuzione simbolica automatici.",
+      metrics_note: "Automatizza in CI: crea una baseline non offuscata, applica le trasformazioni e misura la differenza.",
+      examples_h2: "Esempi pratici in Rust",
+      ex1_h3: "Proc-macro (obfuscazione compile-time delle stringhe)",
+      ex2_h3: "Decrypt a runtime (didattico)",
+      ex3_h3: "VM minimale (API strutturata)",
+      best_h2: "Buone pratiche di sviluppo & manutenzione",
+      b1: "Mantieni una build non offuscata per debug e audit.",
+      b2: "Documenta chi ha accesso ai segreti e come ruotarli.",
+      b3: "Automatizza test di equivalenza (unit + property-based) dopo le trasformazioni.",
+      summary_h: "Sintesi:",
+      summary_p: "L'offuscamento è pragmatico: non rende il software invulnerabile, ma se progettato e testato bene riduce concretamente la praticità dell'analisi."
+    },
+    pl: {
+      title: "Podstawy zaciemniania kodu",
+      noscript: "Przełączanie języka wymaga JavaScript. Domyślnie angielski.",
+      lead: "Nie istnieje narzędzie, które uczyni kod nie do złamania. Zaciemnianie podnosi koszt analizy — kradnie minuty, myli analityków, zmniejsza prawdopodobieństwo ataku.",
+      what_h2: "Co robi zaciemnianie — teoria i praktyka",
+      theory: "Teoria. Formalnie obfuscator O przekształca P w P' zachowując obserwowalne zachowanie. Silne wyniki (Barak i in.) pokazują, że idealny, uniwersalny obfuscator nie istnieje.",
+      practice: "Praktyka. Jeśli atakujący może uruchamiać i śledzić twój binarny dowolnie, każdy sekret, który musi znaleźć się w pamięci, ostatecznie wycieknie. Celem jest uczynienie analizy statycznej i dynamicznej na tyle uciążliwą, by się poddał lub popełnił błąd.",
+      threat_h2: "Model zagrożeń (praktyczny)",
+      threat1: "Atakujący z dostępem tylko do pliku binarnego",
+      threat2: "Atakujący runtime (ptrace, Frida, emulatory)",
+      threat3: "Atakujący z ograniczonym czasem — scenariusz realistyczny",
+      threat_note: "Wybierz, kogo chcesz powstrzymać: nie każda technika pasuje do każdego modelu.",
+      tech_h2: "Przydatne techniki (z przykładami)",
+      t1_h3: "1) Zaciemnianie łańcuchów (proc-macro)",
+      t1_p1: "Zastępuj literały zaszyfrowanymi tablicami i odszyfrowuj na żądanie. Gdy to możliwe, wyprowadzaj klucz ze stanu runtime (np. HMAC na niestatycznych wejściach).",
+      t1_p2: "Szkic wyprowadzania klucza w runtime: użyj HKDF na znaczniku czasu + identyfikatorach maszyny, aby uzyskać klucz efemeryczny.",
+      t2_h3: "2) Spłaszczanie przepływu i wirtualizacja",
+      t2_p1: "Spłaszczanie zmniejsza czytelność CFG. Wirtualizacja kompiluje kod do niestandardowego bytecode'u interpretowanego w runtime — mocne, lecz kosztowne (rozmiar i wydajność).",
+      t3_h3: "3) Nieprzezroczyste predykaty",
+      t3_p1: "Predykaty wyglądające na złożone, ale przyjmujące stałą wartość. Dobrze dobrane mylą wykonanie symboliczne i upraszczacze.",
+      t4_h3: "4) Anti-debug i kontrole w runtime",
+      t4_p1: "Wykrywaj debugery, manipulację czasem lub naruszenia sekcji wykonywalnych. To przeszkody — nie zatrzymają ekspertów, ale podnoszą koszt.",
+      t5_h3: "5) Zarządzanie kluczami i sekretami",
+      t5_p1: "Nie dostarczaj statycznych kluczy. Dziel sekrety, wyprowadzaj je z danych runtime/zdalnych albo używaj tak, by nigdy nie utrwalać jawnego tekstu.",
+      metrics_h2: "Jak oceniać — praktyczne metryki",
+      m1: "Średni czas wyciągnięcia wrażliwego elementu w teście red-team.",
+      m2: "Odsetek funkcji poprawnie odtworzonych przez Ghidra/IDA.",
+      m3: "Odporność na automatyczne narzędzia wykonania symbolicznego.",
+      metrics_note: "Zautomatyzuj to w CI: zbuduj niezaciemnioną bazę, zastosuj transformacje i mierz różnicę.",
+      examples_h2: "Praktyczne przykłady w Rust",
+      ex1_h3: "Zarys proc-makra (zaciemnianie łańcuchów w czasie kompilacji)",
+      ex2_h3: "Odszyfrowanie w runtime (dydaktyczne)",
+      ex3_h3: "Mała maszyna wirtualna (strukturalne API)",
+      best_h2: "Dobre praktyki tworzenia i utrzymania",
+      b1: "Utrzymuj build bez zaciemniania do debugowania i audytów.",
+      b2: "Udokumentuj, kto ma dostęp do sekretów i jak je rotować.",
+      b3: "Automatyzuj testy równoważności (jednostkowe + property-based) po transformacjach.",
+      summary_h: "Podsumowanie:",
+      summary_p: "Zaciemnianie jest pragmatyczne. Nie czyni oprogramowania niewrażliwym, ale dobrze zaprojektowane i przetestowane realnie zwiększa koszt analizy."
+    }
+  };
+
+  const langBtns = document.querySelectorAll('.langbtn');
+  const status = document.getElementById('langStatus');
+
+  function setLang(lang) {
+    const dict = I18N[lang] || I18N.en;
+    document.documentElement.lang = lang;
+
+    // Update pressed state
+    langBtns.forEach(btn => {
+      const pressed = btn.getAttribute('data-lang') === lang;
+      btn.setAttribute('aria-pressed', String(pressed));
+    });
+
+    // Fill all data-i18n targets
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (dict[key]) el.textContent = dict[key];
+      else if (I18N.en[key]) el.textContent = I18N.en[key]; // fallback
+    });
+
+    // Announce for screen readers
+    status.textContent = ({ en: 'Language set to English', it: 'Lingua impostata su Italiano', pl: 'Język ustawiono na polski' })[lang] || '';
+
+    // Persist choice
+    try { localStorage.setItem('lang', lang); } catch (_) {}
+  }
+
+  // Wire up buttons
+  langBtns.forEach(btn => btn.addEventListener('click', () => setLang(btn.dataset.lang)));
+
+  // Initialize from storage or browser
+  (function initLang(){
+    const saved = (() => { try { return localStorage.getItem('lang'); } catch (_) { return null; } })();
+    const browser = (navigator.language || 'en').slice(0,2);
+    const initial = saved && I18N[saved] ? saved : (I18N[browser] ? browser : 'en');
+    setLang(initial);
+  })();
+  </script>
+
+  <footer><p>— <a href="https://www.linkedin.com/in/gianfranco-iaculo-829072250/" target="_blank">Gianfranco Iaculo</a></p></footer>
 
 </body>
 </html>
