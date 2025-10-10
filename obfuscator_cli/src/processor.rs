@@ -9,7 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use syn::{
     parse_file, visit_mut::VisitMut, Expr, ExprForLoop, ExprIf, ExprLit, ExprLoop, ExprMatch,
-    ExprWhile, Ident, ItemFn, Lit, PatIdent, Stmt,
+    ExprWhile, Ident, ItemFn, Lit, PatIdent, Stmt, Pat
 };
 
 pub fn process_file(
@@ -178,8 +178,8 @@ impl VisitMut for ObfuscationTransformer {
             if let Some(init) = &local.init {
                 if let Expr::Macro(mac) = &*init.expr {
                     if mac.mac.path.is_ident("obfuscate_string") {
-                        if let syn::Pat::Ident(pat_ident) = &local.pat {
-                            self.obfuscated_vars.insert(pat_ident.ident.to_string());
+                        if let Some(pat_ident) = collect_idents_from_pat(&local.pat){
+                            self.obfuscated_vars.insert(pat_ident.to_string());
                         }
                     }
                 }
@@ -283,11 +283,40 @@ impl VisitMut for ObfuscationTransformer {
     }
 }
 
+fn collect_idents_from_pat(pat: &Pat) -> Option<Ident> {
+    match pat {
+        Pat::Ident(p) => Some(p.ident.clone()),
+        Pat::Type(t) => collect_idents_from_pat(&t.pat),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::ObfuscationSection;
     use tempfile::TempDir;
+    use syn::{AttrStyle, Attribute, Meta, Token};
+    use syn::token;
+    use proc_macro2::Span;
+
+    /// Input type for the `create_attribute` function, specifying the kind of `syn::Meta` to create.
+    enum AttrInput {
+        PathDsc(&'static  str),
+        ListDsc(ListDscInput),
+        NameValueDsc(NameValueDscInput)
+    }
+
+    struct ListDscInput {
+        path_dsc:&'static  str,
+        tokens:Vec<&'static  str>
+    }
+
+    struct NameValueDscInput {
+        path_dsc:&'static  str,
+        value_dsc:&'static  str
+    }
+
     fn cfg(
         strings: bool,
         min_str_len: Option<usize>,
@@ -346,6 +375,47 @@ mod tests {
             lit: Lit::Str(syn::LitStr::new(str, proc_macro2::Span::call_site())),
         };
         Expr::Lit(literal)
+    }
+
+    /// Creates `syn::Attribute`.
+    fn create_atribute(is_inner:bool,input: AttrInput) -> Attribute {
+        let style = match is_inner {
+            true => AttrStyle::Inner(Token![!](Span::call_site())),
+            false => AttrStyle::Outer,
+        };
+
+        let meta: Meta = match input {
+            AttrInput::PathDsc(p_name) => 
+                Meta::Path(syn::Path::from(Ident::new(p_name, Span::call_site()))),
+            AttrInput::ListDsc(input) => {
+                let literals = input.tokens.iter().map(|s| quote! { #s });
+                let tokens = quote! { #(#literals),* };
+                Meta::List(syn::MetaList {
+                    path: syn::Path::from(Ident::new(input.path_dsc, Span::call_site())),
+                    delimiter: syn::MacroDelimiter::Paren(token::Paren(Span::call_site())),
+                    tokens: tokens,
+                })
+            },
+            AttrInput::NameValueDsc(input) =>{
+                Meta::NameValue(syn::MetaNameValue {
+                    path: syn::Path::from(Ident::new(input.path_dsc, Span::call_site())),
+                    eq_token: Token![=](Span::call_site()),
+                    value: get_str_lit_expression(input.value_dsc),
+                })
+            },
+        };
+        let attr = Attribute {
+            pound_token: Token![#](Span::call_site()),
+            style: style,
+            bracket_token: token::Bracket(Span::call_site()),
+            meta: meta,
+        };
+        return attr;
+    }
+
+    fn _print_atribut_tokens(attr: syn::Attribute ) {
+        let tokens = quote!(#attr);
+        println!("Tokens: {}", tokens);
     }
 
     #[test]
@@ -575,6 +645,102 @@ pub fn hello() -> &'static str { "hi" }
                 assert_eq!(lit_str.value(), lit_to_ignore);
             }
             _ => panic!("expr_3 must be a string literal"),
+        }
+    }
+
+    #[test]
+    fn obf_transformer_test_visit_stmt() {
+        let ident_name = "foo";
+        let number_of_idents = 1;
+        let mut stmt: Stmt = syn::parse_quote! {
+            let foo: &str = obfuscate_string!("test");
+        };
+
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            true,
+            false,
+            false,
+        );
+
+        transformer.visit_stmt_mut(&mut stmt);
+        let mut idents = transformer.obfuscated_vars.iter();
+
+        assert_eq!(transformer.obfuscated_vars.len(), number_of_idents);
+        assert_eq!(idents.next().unwrap(), ident_name);
+    }
+
+    #[test]
+    fn obf_transformer_test_skip_attribute_mut() {
+        let input  = AttrInput::PathDsc("my_path");
+        let mut attr_1: Attribute = create_atribute(true, input);
+
+        let input  = AttrInput::ListDsc(ListDscInput { path_dsc: "my_list_path", tokens: vec!["foo_1","foo_2","foo_3"] });
+        let mut attr_2: Attribute = create_atribute(true, input);
+
+        let name_value_3 = "my secret doc";
+        let input  = AttrInput::NameValueDsc(NameValueDscInput { path_dsc: "doc", value_dsc: name_value_3 });
+        let mut attr_3: Attribute = create_atribute(true, input);
+
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            true,
+            false,
+            true,
+        );
+
+        transformer.visit_attribute_mut(&mut attr_1);
+        transformer.visit_attribute_mut(&mut attr_2);
+        transformer.visit_attribute_mut(&mut attr_3);
+
+        match attr_3.meta {
+            Meta::NameValue(meta_name_value) => {
+                match meta_name_value.value {
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(lit_str),
+                        ..
+                    }) => {
+                        assert_eq!(lit_str.value(), name_value_3);
+                    }
+                    _ => panic!("attr_3.meta value must be a string literal"),
+                }
+            },
+            _ => panic!("attr_3.meta must remain of type Meta::NameValue"),
+        }
+    }
+
+
+
+    #[test]
+    fn obf_my_test_test(){
+        use syn::{parse_quote, Stmt, Pat};
+        let stmt: Stmt = parse_quote! {
+            let foo: &str = "test";
+        };
+    
+        if let Stmt::Local(local) = &stmt {
+            match &local.pat {
+                Pat::Ident(pat_ident) => {
+                    println!("Variable name 1: {}", pat_ident.ident);
+                }
+                Pat::Type(pat_type) => {
+                    // inside Pat::Type, the inner pattern may still be Pat::Ident
+                    if let Pat::Ident(pat_ident) = &*pat_type.pat {
+                        println!("Variable name 2: {}", pat_ident.ident);
+                    } else {
+                        println!("Type pattern, but not an identifier");
+                    }
+                }
+                _ => {
+                    println!("Other pattern:");
+                }
+            }
+        } else {
+            println!("Not a local statement");
         }
     }
 }
