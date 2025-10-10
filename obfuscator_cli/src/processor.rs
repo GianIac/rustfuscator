@@ -378,7 +378,7 @@ mod tests {
     }
 
     /// Creates `syn::Attribute`.
-    fn create_atribute(is_inner:bool,input: AttrInput) -> Attribute {
+    fn create_attribute(is_inner:bool,input: AttrInput) -> Attribute {
         let style = match is_inner {
             true => AttrStyle::Inner(Token![!](Span::call_site())),
             false => AttrStyle::Outer,
@@ -675,14 +675,14 @@ pub fn hello() -> &'static str { "hi" }
     #[test]
     fn obf_transformer_test_skip_attribute_mut() {
         let input  = AttrInput::PathDsc("my_path");
-        let mut attr_1: Attribute = create_atribute(true, input);
+        let mut attr_1: Attribute = create_attribute(true, input);
 
         let input  = AttrInput::ListDsc(ListDscInput { path_dsc: "my_list_path", tokens: vec!["foo_1","foo_2","foo_3"] });
-        let mut attr_2: Attribute = create_atribute(true, input);
+        let mut attr_2: Attribute = create_attribute(true, input);
 
         let name_value_3 = "my secret doc";
         let input  = AttrInput::NameValueDsc(NameValueDscInput { path_dsc: "doc", value_dsc: name_value_3 });
-        let mut attr_3: Attribute = create_atribute(true, input);
+        let mut attr_3: Attribute = create_attribute(true, input);
 
         let mut transformer = obf_transformer(
             None,
