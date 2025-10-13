@@ -713,34 +713,4 @@ pub fn hello() -> &'static str { "hi" }
         }
     }
 
-
-
-    #[test]
-    fn obf_my_test_test(){
-        use syn::{parse_quote, Stmt, Pat};
-        let stmt: Stmt = parse_quote! {
-            let foo: &str = "test";
-        };
-    
-        if let Stmt::Local(local) = &stmt {
-            match &local.pat {
-                Pat::Ident(pat_ident) => {
-                    println!("Variable name 1: {}", pat_ident.ident);
-                }
-                Pat::Type(pat_type) => {
-                    // inside Pat::Type, the inner pattern may still be Pat::Ident
-                    if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                        println!("Variable name 2: {}", pat_ident.ident);
-                    } else {
-                        println!("Type pattern, but not an identifier");
-                    }
-                }
-                _ => {
-                    println!("Other pattern:");
-                }
-            }
-        } else {
-            println!("Not a local statement");
-        }
-    }
 }
