@@ -296,7 +296,7 @@ mod tests {
     use super::*;
     use crate::config::ObfuscationSection;
     use tempfile::TempDir;
-    use syn::{AttrStyle, Attribute, Meta, Token};
+    use syn::{AttrStyle, Attribute, Block, ExprBlock, ExprIf, Meta, Stmt, StmtMacro, Token};
     use syn::token;
     use proc_macro2::Span;
 
@@ -372,7 +372,7 @@ mod tests {
     fn get_str_lit_expression(str: &'static str) -> Expr {
         let literal = ExprLit {
             attrs: vec![],
-            lit: Lit::Str(syn::LitStr::new(str, proc_macro2::Span::call_site())),
+            lit: Lit::Str(syn::LitStr::new(str, Span::call_site())),
         };
         Expr::Lit(literal)
     }
@@ -413,8 +413,29 @@ mod tests {
         return attr;
     }
 
-    fn _print_atribut_tokens(attr: syn::Attribute ) {
-        let tokens = quote!(#attr);
+    fn verify_simple_stmt_after_flow_mut(stmt:Option<&Stmt>) {
+        match stmt {
+            Some(Stmt::Macro(StmtMacro { attrs: _, mac, semi_token: _ })) => {
+                let ident = &mac.path.segments.last().unwrap().ident;
+                assert_eq!(ident.to_string(), "obfuscate_flow");
+            },
+            Some(Stmt::Expr(Expr::Lit(ExprLit {
+                lit: Lit::Str(_),
+                ..
+            }), _)) => {
+                panic!("The first element must be the `obfuscate_flow` macro.\nIt cannot leave the original expression at the first index of block statements.");
+            },
+            Some(_) => {
+                panic!("The first element must be the `obfuscate_flow` macro\nInstead, it creates unexpected expressions.");
+            },
+            None => {
+                panic!("Unexpected behavior in `then_branch`");
+            },
+        }
+    }
+
+    fn _print_tokens<T: quote::ToTokens>(input: T) {
+        let tokens = quote!(#input);
         println!("Tokens: {}", tokens);
     }
 
@@ -711,6 +732,181 @@ pub fn hello() -> &'static str { "hi" }
             },
             _ => panic!("attr_3.meta must remain of type Meta::NameValue"),
         }
+    }
+
+    #[test]
+    fn obf_transformer_expr_if_mut() {
+        let mut if_expr: ExprIf = syn::parse2(quote! {if foo_1 > foo_2 { "foo" ; } else { "foo" ; }}).unwrap();
+
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            false,
+            true,
+            true,
+        );
+
+        transformer.visit_expr_if_mut(&mut if_expr);
+
+        let mut stmts_iter = if_expr.then_branch.stmts.iter();
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+
+        let (_, else_branch) = if_expr.else_branch.unwrap();
+        let stmts = if let Expr::Block(ExprBlock {
+            attrs: _,
+            label: _,
+            block: Block {
+                brace_token: _,
+                stmts
+            }}) = *else_branch {stmts} else {panic!("Unexpected behavior - missing `else_branch`");};
+        let mut stmts_iter = stmts.iter();
+
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+    }
+
+    #[test]
+    fn obf_transformer_expr_match_mut() {
+        let mut match_expr: ExprMatch = syn::parse2(quote! {match foo_1 {Some(foo_2)=>{"foo_1";},None=>{"foo_2";}}}).unwrap();
+        
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            false,
+            true,
+            true,
+        );
+
+        transformer.visit_expr_match_mut(&mut match_expr);
+
+        let mut arms = match_expr.arms.iter();
+
+        let arms_next = arms.next().unwrap().body.clone();
+        let inside_arm = if let Expr::Block(expr_blok) = *arms_next {expr_blok.block.stmts} else {panic!()};
+        let mut stmts_iter = inside_arm.iter(); 
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+
+        let arms_next = arms.next().unwrap().body.clone();
+        let inside_arm = if let Expr::Block(expr_blok) = *arms_next {expr_blok.block.stmts} else {panic!()};
+        let mut stmts_iter = inside_arm.iter(); 
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+
+    }
+
+    #[test]
+    fn obf_transformer_expr_loop_mut() {
+        let mut loop_expr: ExprLoop = syn::parse2(quote! {loop { "foo" ; }}).unwrap();
+        
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            false,
+            true,
+            true,
+        );
+
+        transformer.visit_expr_loop_mut(&mut loop_expr);
+
+        let mut stmts_iter = loop_expr.body.stmts.iter();
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+
+    }
+
+    #[test]
+    fn obf_transformer_expr_while_mut() {
+        let mut while_expr: ExprWhile = syn::parse2(quote! {while foo { "foo" ; }}).unwrap();
+        
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            false,
+            true,
+            true,
+        );
+
+        transformer.visit_expr_while_mut(&mut while_expr);
+
+        let mut stmts_iter = while_expr.body.stmts.iter();
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+    }
+
+    #[test]
+    fn obf_transformer_expr_for_loop_mut() {
+        let mut for_loop_expr: ExprForLoop = syn::parse2(quote! {for i in foo { i ; }}).unwrap();
+        
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            false,
+            false,
+            true,
+            true,
+        );
+
+        transformer.visit_expr_for_loop_mut(&mut for_loop_expr);
+
+        let mut stmts_iter = for_loop_expr.body.stmts.iter();
+        verify_simple_stmt_after_flow_mut(stmts_iter.next());
+    }
+
+    #[test]
+    fn obf_transformer_pat_ident_mut() {
+        let mut pat_ident_1: PatIdent = PatIdent{
+            attrs: vec![],
+            by_ref: None,
+            mutability: None,
+            ident: Ident::new("foo", Span::call_site()),
+            subpat: None,
+        };
+        let mut pat_ident_2: PatIdent = PatIdent{
+            attrs: vec![],
+            by_ref: None,
+            mutability: None,
+            ident: Ident::new("foo", Span::call_site()),
+            subpat: None,
+        };
+
+        let mut transformer = obf_transformer(
+            None,
+            None,
+            true,
+            false,
+            false,
+            true,
+        );
+
+        transformer.visit_pat_ident_mut(&mut pat_ident_1);
+        transformer.visit_pat_ident_mut(&mut pat_ident_2);
+
+        let ident_1 = pat_ident_1.ident.to_string();
+        let ident_first_5_1: String = ident_1.chars().take(5).collect();
+
+        let ident_2 = pat_ident_2.ident.to_string();
+        let ident_first_5_2: String = ident_2.chars().take(5).collect();
+        // foo_x = foo_x
+        assert_eq!(ident_first_5_1, ident_first_5_2);
+        assert_ne!(ident_1, ident_2);
+
+        transformer.rename_identifiers = false;
+        pat_ident_1.ident = Ident::new("foo", Span::call_site());
+        pat_ident_2.ident = Ident::new("foo", Span::call_site());
+        transformer.visit_pat_ident_mut(&mut pat_ident_1);
+        transformer.visit_pat_ident_mut(&mut pat_ident_2);
+        let ident_1 = pat_ident_1.ident.to_string();
+        let ident_2 = pat_ident_2.ident.to_string();
+        assert_eq!(ident_1, ident_2);
+
+        transformer.rename_identifiers = true;
+        transformer.preserve_idents = vec!["foo".to_string()];
+        transformer.visit_pat_ident_mut(&mut pat_ident_1);
+        transformer.visit_pat_ident_mut(&mut pat_ident_2);
+        let ident_1 = pat_ident_1.ident.to_string();
+        let ident_2 = pat_ident_2.ident.to_string();
+        assert_eq!(ident_1, ident_2);
+
     }
 
 }
