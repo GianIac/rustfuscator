@@ -114,7 +114,7 @@ fn patch_cargo_toml(project_root: &Path) -> Result<()> {
 
         // Only insert if not already present
         if !deps.contains_key("rust_code_obfuscator") {
-            deps.insert("rust_code_obfuscator", value("0.2.9"));
+            deps.insert("rust_code_obfuscator", value("0.2.10"));
         }
         if !deps.contains_key("cryptify") {
             deps.insert("cryptify", value("3.1.1"));

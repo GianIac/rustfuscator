@@ -115,7 +115,7 @@ Example file:
 Add to your Cargo.toml:
 
 `[dependencies] -->
-rust_code_obfuscator = "0.2.9"
+rust_code_obfuscator = "0.2.10"
 cryptify = "3.1.1"`
 
 Use it:
