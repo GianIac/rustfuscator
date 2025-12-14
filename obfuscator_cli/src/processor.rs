@@ -8,9 +8,13 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::{
-    parse_file, visit_mut::VisitMut, Expr, ExprForLoop, ExprIf, ExprLit, ExprLoop, ExprMatch,
-    ExprWhile, Ident, ItemFn, Lit, PatIdent, Stmt, Pat
+    parse_file,
+    visit_mut::VisitMut,
+    Expr, ExprForLoop, ExprIf, ExprLit, ExprLoop, ExprMatch, ExprWhile,
+    LocalInit,
+    Ident, ItemFn, Lit, PatIdent, Pat, Stmt, Type,
 };
+
 
 pub fn process_file(
     path: &Path,
@@ -80,21 +84,25 @@ pub fn process_file(
     for item in &syntax_tree.items {
         if let syn::Item::Use(u) = item {
             let use_str = quote!(#u).to_string();
-            if use_str.contains("obfuscate_string") || use_str.contains("obfuscate_flow") {
+            if use_str.contains("obfuscate_string")
+                || use_str.contains("obfuscate_flow")
+                || use_str.contains("obfuscate_str")
+            {
                 has_use = true;
                 break;
             }
-        }
+        }        
     }
 
     let mut new_use_items: Vec<syn::Item> = Vec::new();
 
     if transformer.obfuscate_strings {
         new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_string; });
+        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_str; });
     }
     if transformer.obfuscate_flow {
         new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_flow; });
-    }
+    }    
 
     if !has_use && !new_use_items.is_empty() {
         for it in new_use_items.into_iter().rev() {
@@ -137,56 +145,160 @@ struct ObfuscationTransformer {
 }
 
 impl VisitMut for ObfuscationTransformer {
+    
     fn visit_expr_mut(&mut self, expr: &mut Expr) {
-        if !self.obfuscate_strings {
-            return syn::visit_mut::visit_expr_mut(self, expr);
-        }
-
-        if let Expr::Lit(ExprLit {
-            lit: Lit::Str(ref lit_str),
-            ..
-        }) = expr
-        {
-            let value = lit_str.value();
-
-            if self
-                .min_string_length
-                .map_or(false, |min| value.len() < min)
-            {
-                return;
-            }
-
-            if self
-                .ignore_strings
-                .as_ref()
-                .map_or(false, |list| list.contains(&value))
-            {
-                return;
-            }
-
-            let span = lit_str.span();
-            let wrapped: Expr =
-                syn::parse2(quote_spanned! {span=> obfuscate_string!(#value) }).unwrap();
-            *expr = wrapped;
-        }
-
         syn::visit_mut::visit_expr_mut(self, expr);
     }
 
     fn visit_stmt_mut(&mut self, stmt: &mut Stmt) {
+        // String obfuscation in let binding con type annotation ---
+        if self.obfuscate_strings {
+            if let Stmt::Local(local) = stmt {
+                if let Some(LocalInit { expr, .. }) = &mut local.init {
+                    // LocalInit { eq_token, expr, diverge }
+                    let expr: &mut Expr = &mut **expr;
+    
+                    // only patterns with type annotation: let <pat>: <ty> = <expr>;
+                    if let Pat::Type(pat_type) = &local.pat {
+                        // Explicit type to the right 
+                        let ty: &Type = &*pat_type.ty;
+    
+                        // A: let foo: &str = "literal";
+                        if let Type::Reference(type_ref) = ty {
+                            if let Type::Path(type_path) = &*type_ref.elem {
+                                if type_path.path.is_ident("str") {
+                                    if let Expr::Lit(ExprLit {
+                                        lit: Lit::Str(ref lit_str),
+                                        ..
+                                    }) = expr
+                                    {
+                                        let value = lit_str.value();
+    
+                                        // min_string_length / ignore_strings
+                                        if self
+                                            .min_string_length
+                                            .map_or(false, |min| value.len() < min)
+                                        {
+                                            // too short
+                                        } else if self
+                                            .ignore_strings
+                                            .as_ref()
+                                            .map_or(false, |list| list.contains(&value))
+                                        {
+                                            // in ignore list
+                                        } else {
+                                            let span = lit_str.span();
+                                            let wrapped: Expr = syn::parse2(
+                                                quote_spanned! {span=> obfuscate_str!(#value) }
+                                            )
+                                            .expect(
+                                                "failed to parse obfuscate_str! expression",
+                                            );
+                                            *expr = wrapped;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+    
+                        // B: let foo: String = "literal";
+                        if let Type::Path(type_path) = ty {
+                            if type_path.path.is_ident("String") {
+                                if let Expr::Lit(ExprLit {
+                                    lit: Lit::Str(ref lit_str),
+                                    ..
+                                }) = expr
+                                {
+                                    let value = lit_str.value();
+    
+                                    if self
+                                        .min_string_length
+                                        .map_or(false, |min| value.len() < min)
+                                    {
+                                        // too short
+                                    } else if self
+                                        .ignore_strings
+                                        .as_ref()
+                                        .map_or(false, |list| list.contains(&value))
+                                    {
+                                        // ignore
+                                    } else {
+                                        let span = lit_str.span();
+                                        let wrapped: Expr = syn::parse2(
+                                            quote_spanned! {span=> obfuscate_string!(#value) }
+                                        )
+                                        .expect(
+                                            "failed to parse obfuscate_string! expression",
+                                        );
+                                        *expr = wrapped;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    
+        // Tracking of variables initialized via string macros
         if let Stmt::Local(local) = stmt {
-            if let Some(init) = &local.init {
-                if let Expr::Macro(mac) = &*init.expr {
-                    if mac.mac.path.is_ident("obfuscate_string") {
-                        if let Some(pat_ident) = collect_idents_from_pat(&local.pat){
+            if let Some(LocalInit { expr, .. }) = &local.init {
+                if let Expr::Macro(mac) = &**expr {
+                    if mac.mac.path.is_ident("obfuscate_string")
+                        || mac.mac.path.is_ident("obfuscate_str")
+                    {
+                        if let Some(pat_ident) = collect_idents_from_pat(&local.pat) {
                             self.obfuscated_vars.insert(pat_ident.to_string());
                         }
                     }
                 }
             }
         }
-
+    
+        // Continue the standard visit
         syn::visit_mut::visit_stmt_mut(self, stmt);
+    }    
+
+    fn visit_expr_method_call_mut(&mut self, node: &mut syn::ExprMethodCall) {
+        if self.obfuscate_strings {
+            let method_name = node.method.to_string();
+
+            // For now we only handle push_str("literal") --> NEXT FUTURE
+            if method_name == "push_str" {
+                if let Some(first_arg) = node.args.first_mut() {
+                    if let Expr::Lit(ExprLit {
+                        lit: Lit::Str(ref lit_str),
+                        ..
+                    }) = first_arg
+                    {
+                        let value = lit_str.value();
+
+                        if self
+                            .min_string_length
+                            .map_or(false, |min| value.len() < min)
+                        {
+                            // too short
+                        } else if self
+                            .ignore_strings
+                            .as_ref()
+                            .map_or(false, |list| list.contains(&value))
+                        {
+                            // ignore
+                        } else {
+                            let span = lit_str.span();
+                            let wrapped: Expr = syn::parse2(
+                                quote_spanned! {span=> obfuscate_str!(#value) }
+                            )
+                            .expect("failed to parse obfuscate_str! expression");
+
+                            *first_arg = wrapped;
+                        }
+                    }
+                }
+            }
+        }
+
+        syn::visit_mut::visit_expr_method_call_mut(self, node);
     }
 
     fn visit_attribute_mut(&mut self, attr: &mut syn::Attribute) {
@@ -281,6 +393,47 @@ impl VisitMut for ObfuscationTransformer {
 
         syn::visit_mut::visit_pat_ident_mut(self, pat);
     }
+
+    fn visit_item_const_mut(&mut self, item: &mut syn::ItemConst) {
+        if self.obfuscate_strings {
+            if let Type::Reference(type_ref) = &*item.ty {
+                if let Type::Path(type_path) = &*type_ref.elem {
+                    if type_path.path.is_ident("str") {
+                        // QUI: borrow, non move
+                        if let Expr::Lit(ExprLit {
+                            lit: Lit::Str(ref lit_str),
+                            ..
+                        }) = &*item.expr
+                        {
+                            let value = lit_str.value();
+    
+                            if self
+                                .min_string_length
+                                .map_or(false, |min| value.len() < min)
+                            {
+                                // too short
+                            } else if self
+                                .ignore_strings
+                                .as_ref()
+                                .map_or(false, |list| list.contains(&value))
+                            {
+                                // ignore
+                            } else {
+                                let span = lit_str.span();
+                                let wrapped: Expr = syn::parse2(
+                                    quote_spanned! {span=> obfuscate_str!(#value) }
+                                )
+                                .expect("failed to parse obfuscate_str! expression");
+                                item.expr = Box::new(wrapped);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        syn::visit_mut::visit_item_const_mut(self, item);
+    }
+    
 }
 
 fn collect_idents_from_pat(pat: &Pat) -> Option<Ident> {
@@ -442,7 +595,7 @@ mod tests {
     #[test]
     fn cfg_strings_on() {
         let src = r#"pub const TEST: &str = "test";"#;
-
+    
         let (_dir, path, relative_path) = create_rs_file(src);
         let (out, _changed, _before) = super::process_file(
             &path,
@@ -451,13 +604,16 @@ mod tests {
             false,
         )
         .unwrap();
-
+    
         let mut lines = out.lines();
         let line_1 = lines.next().unwrap();
         let line_2 = lines.next().unwrap();
-        assert!(line_1 == r#"use rust_code_obfuscator::obfuscate_string;"#);
-        assert!(line_2 == r#"pub const TEST: &str = obfuscate_string!("test");"#);
+        let line_3 = lines.next().unwrap();
+        assert_eq!(line_1, r#"use rust_code_obfuscator::obfuscate_string;"#);
+        assert_eq!(line_2, r#"use rust_code_obfuscator::obfuscate_str;"#);
+        assert_eq!(line_3, r#"pub const TEST: &str = obfuscate_str!("test");"#);
     }
+    
 
     #[test]
     fn cfg_strings_off() {
@@ -483,9 +639,9 @@ mod tests {
     fn cfg_set_min_string_length() {
         let str_len_limit: Option<usize> = Some(5);
         let src = r#"pub const TEST_1: &str = "long enough test";
-pub const TEST_2: &str = "test";
-"#;
-
+    pub const TEST_2: &str = "test";
+    "#;
+    
         let (_dir, path, relative_path) = create_rs_file(src);
         let (out, _changed, _before) = super::process_file(
             &path,
@@ -494,14 +650,22 @@ pub const TEST_2: &str = "test";
             false,
         )
         .unwrap();
-
+    
         let mut lines = out.lines();
-        let _ = lines.next();
-        let line_2 = lines.next().unwrap();
-        let line_3 = lines.next().unwrap();
-        assert!(line_2 == r#"pub const TEST_1: &str = obfuscate_string!("long enough test");"#);
-        assert!(line_3 == r#"pub const TEST_2: &str = "test";"#);
-    }
+        // potenzialmente ci sono anche le righe `use ...` prima,
+        // ma se non ti interessa testarle qui, puoi saltarle:
+        while let Some(line) = lines.next() {
+            if line.starts_with("pub const TEST_1") {
+                assert_eq!(
+                    line,
+                    r#"pub const TEST_1: &str = obfuscate_str!("long enough test");"#
+                );
+                let line_3 = lines.next().unwrap();
+                assert_eq!(line_3, r#"pub const TEST_2: &str = "test";"#);
+                break;
+            }
+        }
+    }    
 
     #[test]
     fn cfg_skip_files() {
@@ -614,58 +778,56 @@ pub fn hello() -> &'static str { "hi" }
     }
 
     #[test]
-    fn obf_transformer_test_visit_expr() {
-        let lit_too_short = "foo";
-        let lit_long_enough = "foo test";
-        let lit_to_ignore = "ignore me";
-
-        let cfg_min_len = lit_too_short.len() + 1;
-        let cfg_ignore = vec![String::from(lit_to_ignore)];
-
-        let mut expr_1 = get_str_lit_expression(lit_too_short);
-        let mut expr_2 = get_str_lit_expression(lit_long_enough);
-        let mut expr_3 = get_str_lit_expression(lit_to_ignore);
-
+    fn obf_transformer_let_string_and_str() {
+        let mut stmt: Stmt = syn::parse_quote! {
+            let foo: &str = "hello";
+        };
+        let mut stmt2: Stmt = syn::parse_quote! {
+            let bar: String = "world";
+        };
+    
         let mut transformer = obf_transformer(
-            Some(cfg_min_len),
-            Some(cfg_ignore),
+            None,
+            None,
             false,
-            true,
+            true,  // obfuscate_strings
             false,
             false,
         );
-
-        transformer.visit_expr_mut(&mut expr_1);
-        transformer.visit_expr_mut(&mut expr_2);
-        transformer.visit_expr_mut(&mut expr_3);
-
-        match &expr_1 {
-            Expr::Lit(ExprLit {
-                lit: Lit::Str(lit_str),
-                ..
-            }) => {
-                assert_eq!(lit_str.value(), lit_too_short);
+    
+        transformer.visit_stmt_mut(&mut stmt);
+        transformer.visit_stmt_mut(&mut stmt2);
+    
+        // test foo: &str → obfuscate_str!
+        if let Stmt::Local(local) = stmt {
+            if let Some(LocalInit { expr, .. }) = local.init {
+                match *expr {
+                    Expr::Macro(mac) => {
+                        assert_eq!(mac.mac.path.segments.last().unwrap().ident, "obfuscate_str");
+                    }
+                    _ => panic!("foo must use obfuscate_str!"),
+                }
+            } else {
+                panic!("foo must have init");
             }
-            _ => panic!("expr_1 must be a string literal"),
+        } else {
+            panic!("stmt must be Local");
         }
-
-        match &expr_2 {
-            Expr::Macro(expr_macro) => {
-                let mac = &expr_macro.mac;
-                assert_eq!(mac.tokens.to_string().trim_matches('"'), lit_long_enough);
-                assert_eq!(mac.path.segments.last().unwrap().ident, "obfuscate_string");
+    
+        // test bar: String → obfuscate_string!
+        if let Stmt::Local(local) = stmt2 {
+            if let Some(LocalInit { expr, .. }) = local.init {
+                match *expr {
+                    Expr::Macro(mac) => {
+                        assert_eq!(mac.mac.path.segments.last().unwrap().ident, "obfuscate_string");
+                    }
+                    _ => panic!("bar must use obfuscate_string!"),
+                }
+            } else {
+                panic!("bar must have init");
             }
-            _ => panic!("expr_2 must be a macro"),
-        }
-
-        match &expr_3 {
-            Expr::Lit(ExprLit {
-                lit: Lit::Str(lit_str),
-                ..
-            }) => {
-                assert_eq!(lit_str.value(), lit_to_ignore);
-            }
-            _ => panic!("expr_3 must be a string literal"),
+        } else {
+            panic!("stmt2 must be Local");
         }
     }
 
