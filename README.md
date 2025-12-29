@@ -12,11 +12,13 @@ Protect your source code from reverse engineering by encrypting string literals,
 
 ## Features
 
-- Full CLI: obfuscate files, folders, or full Cargo projects
+- CLI for files, folders, or Cargo projects (`rustfuscator --input <path> --output <obf> --as-project --format`)
 - Configurable via `.obfuscate.toml`
 - Output formatting (`--format`)
 - No runtime dependency or unpacking
-- Obfuscate string literals at compile-time (`obfuscate_string!`)
+- Compile-time string obfuscation via:
+  - `obfuscate_string!($s)` → returns `ObfStr` wrapper (derefs to `str`)
+  - `obfuscate_str!($s)` → returns `&'static str` accessor
 - Insert control-flow breaking statements (`obfuscate_flow!`)
 - Derive macro for struct encryption (`#[derive(Obfuscate)]`) and compile-time string encryption with build-time key management
 
@@ -115,7 +117,7 @@ Example file:
 Add to your Cargo.toml:
 
 `[dependencies] -->
-rust_code_obfuscator = "0.2.10"
+rust_code_obfuscator = "0.3.0"
 cryptify = "3.1.1"`
 
 Use it:
