@@ -5,9 +5,11 @@
 [![Whitepaper](https://img.shields.io/badge/docs-whitepaper-lightgrey?logo=readthedocs)](https://github.com/GianIac/rustfuscator/blob/main/WHITEPAPER.md)
 [![Obfuscation Guide](https://img.shields.io/badge/docs-obfuscation_fundamentals-blue?logo=rust)](https://gianiac.github.io/rustfuscator/obfuscation_fundamentals.html)
 
+> Obfuscation is pragmatic. It won't make software invulnerable, but if designed and tested well it meaningfully reduces the practicality of analysis.
+
 **Obfuscation-first CLI and library for Rust.**  
 Protect your source code from reverse engineering by encrypting string literals, injecting opaque control-flow, and rewriting AST logic — with full automation CLI, macros or a derive.
-
+ 
 ---
 
 ## Features
