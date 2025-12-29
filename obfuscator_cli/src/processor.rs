@@ -77,38 +77,56 @@ pub fn process_file(
         obfuscate_flow: config.obfuscation.control_flow,
         skip_attributes: config.obfuscation.skip_attributes.unwrap_or(false),
         obfuscated_vars: HashSet::new(),
+        used_obfuscate_str: false,
+        used_obfuscate_string: false,
+        used_obfuscate_flow: false
     };
     transformer.visit_file_mut(&mut syntax_tree);
 
-    let mut has_use = false;
+    let mut has_use_str = false;
+    let mut has_use_string = false;
+    let mut has_use_flow = false;
+    
     for item in &syntax_tree.items {
         if let syn::Item::Use(u) = item {
             let use_str = quote!(#u).to_string();
-            if use_str.contains("obfuscate_string")
-                || use_str.contains("obfuscate_flow")
-                || use_str.contains("obfuscate_str")
-            {
-                has_use = true;
-                break;
+            if use_str.contains("obfuscate_str") {
+                has_use_str = true;
             }
-        }        
-    }
-
-    let mut new_use_items: Vec<syn::Item> = Vec::new();
-
-    if transformer.obfuscate_strings {
-        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_string; });
-        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_str; });
-    }
-    if transformer.obfuscate_flow {
-        new_use_items.push(syn::parse_quote! { use rust_code_obfuscator::obfuscate_flow; });
-    }    
-
-    if !has_use && !new_use_items.is_empty() {
-        for it in new_use_items.into_iter().rev() {
-            syntax_tree.items.insert(0, it);
+            if use_str.contains("obfuscate_string") {
+                has_use_string = true;
+            }
+            if use_str.contains("obfuscate_flow") {
+                has_use_flow = true;
+            }
         }
     }
+    
+    let mut new_use_items: Vec<syn::Item> = Vec::new();
+    
+    if transformer.used_obfuscate_string && !has_use_string {
+        new_use_items.push(syn::parse_quote! {
+            use rust_code_obfuscator::obfuscate_string;
+        });
+    }
+    
+    if transformer.used_obfuscate_str && !has_use_str {
+        new_use_items.push(syn::parse_quote! {
+            use rust_code_obfuscator::obfuscate_str;
+        });
+    }
+    
+    if transformer.used_obfuscate_flow && !has_use_flow {
+        new_use_items.push(syn::parse_quote! {
+            use rust_code_obfuscator::obfuscate_flow;
+        });
+    }
+    
+    if !new_use_items.is_empty() {
+        for import in new_use_items.into_iter().rev() {
+            syntax_tree.items.insert(0, import);
+        }
+    }    
 
     let transformed = prettyplease::unparse(&syntax_tree);
     let changed = transformed != source;
@@ -142,6 +160,9 @@ struct ObfuscationTransformer {
     obfuscate_flow: bool,
     skip_attributes: bool,
     obfuscated_vars: HashSet<String>,
+    used_obfuscate_str: bool,
+    used_obfuscate_string: bool,
+    used_obfuscate_flow: bool
 }
 
 impl VisitMut for ObfuscationTransformer {
@@ -195,6 +216,7 @@ impl VisitMut for ObfuscationTransformer {
                                                 "failed to parse obfuscate_str! expression",
                                             );
                                             *expr = wrapped;
+                                            self.used_obfuscate_str = true;
                                         }
                                     }
                                 }
@@ -231,6 +253,7 @@ impl VisitMut for ObfuscationTransformer {
                                             "failed to parse obfuscate_string! expression",
                                         );
                                         *expr = wrapped;
+                                        self.used_obfuscate_string = true;
                                     }
                                 }
                             }
@@ -292,6 +315,7 @@ impl VisitMut for ObfuscationTransformer {
                             .expect("failed to parse obfuscate_str! expression");
 
                             *first_arg = wrapped;
+                            self.used_obfuscate_str = true;
                         }
                     }
                 }
@@ -310,6 +334,7 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_if_mut(&mut self, node: &mut ExprIf) {
         if self.obfuscate_flow {
+            self.used_obfuscate_flow = true;
             let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
             node.then_branch.stmts.insert(0, inject.clone());
             if let Some((_, else_branch)) = &mut node.else_branch {
@@ -323,6 +348,7 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_match_mut(&mut self, node: &mut ExprMatch) {
         if self.obfuscate_flow {
+            self.used_obfuscate_flow = true;
             for arm in &mut node.arms {
                 let original = &arm.body;
                 arm.body = Box::new(syn::parse_quote!({ obfuscate_flow!(); #original }));
@@ -342,6 +368,7 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_loop_mut(&mut self, node: &mut ExprLoop) {
         if self.obfuscate_flow {
+            self.used_obfuscate_flow = true;
             let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
             node.body.stmts.insert(0, inject);
         }
@@ -350,6 +377,7 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_while_mut(&mut self, node: &mut ExprWhile) {
         if self.obfuscate_flow {
+            self.used_obfuscate_flow = true;
             let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
             node.body.stmts.insert(0, inject);
         }
@@ -358,6 +386,7 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_for_loop_mut(&mut self, node: &mut ExprForLoop) {
         if self.obfuscate_flow {
+            self.used_obfuscate_flow = true;
             let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
             node.body.stmts.insert(0, inject);
         }
@@ -395,44 +424,21 @@ impl VisitMut for ObfuscationTransformer {
     }
 
     fn visit_item_const_mut(&mut self, item: &mut syn::ItemConst) {
+        // Default: do NOT obfuscate const &str = "..."
         if self.obfuscate_strings {
             if let Type::Reference(type_ref) = &*item.ty {
                 if let Type::Path(type_path) = &*type_ref.elem {
                     if type_path.path.is_ident("str") {
-                        // QUI: borrow, non move
-                        if let Expr::Lit(ExprLit {
-                            lit: Lit::Str(ref lit_str),
-                            ..
-                        }) = &*item.expr
-                        {
-                            let value = lit_str.value();
-    
-                            if self
-                                .min_string_length
-                                .map_or(false, |min| value.len() < min)
-                            {
-                                // too short
-                            } else if self
-                                .ignore_strings
-                                .as_ref()
-                                .map_or(false, |list| list.contains(&value))
-                            {
-                                // ignore
-                            } else {
-                                let span = lit_str.span();
-                                let wrapped: Expr = syn::parse2(
-                                    quote_spanned! {span=> obfuscate_str!(#value) }
-                                )
-                                .expect("failed to parse obfuscate_str! expression");
-                                item.expr = Box::new(wrapped);
-                            }
+                        if matches!(&*item.expr, Expr::Lit(ExprLit { lit: Lit::Str(_), .. })) {
+                            // skip
+                            return;
                         }
                     }
                 }
             }
         }
         syn::visit_mut::visit_item_const_mut(self, item);
-    }
+    }    
     
 }
 
@@ -498,6 +504,7 @@ mod tests {
         rename_identifiers: bool,
         obfuscate_strings: bool,
         obfuscate_flow: bool,
+        
         skip_attributes: bool,
     ) -> ObfuscationTransformer {
         ObfuscationTransformer {
@@ -509,6 +516,9 @@ mod tests {
             obfuscate_flow: obfuscate_flow,
             skip_attributes: skip_attributes,
             obfuscated_vars: HashSet::new(),
+            used_obfuscate_str: false,
+            used_obfuscate_string: false,
+            used_obfuscate_flow: false,
         }
     }
 
@@ -605,13 +615,7 @@ mod tests {
         )
         .unwrap();
     
-        let mut lines = out.lines();
-        let line_1 = lines.next().unwrap();
-        let line_2 = lines.next().unwrap();
-        let line_3 = lines.next().unwrap();
-        assert_eq!(line_1, r#"use rust_code_obfuscator::obfuscate_string;"#);
-        assert_eq!(line_2, r#"use rust_code_obfuscator::obfuscate_str;"#);
-        assert_eq!(line_3, r#"pub const TEST: &str = obfuscate_str!("test");"#);
+        assert_eq!(out.trim(), src.trim());
     }
     
 
@@ -652,13 +656,12 @@ mod tests {
         .unwrap();
     
         let mut lines = out.lines();
-        // potenzialmente ci sono anche le righe `use ...` prima,
-        // ma se non ti interessa testarle qui, puoi saltarle:
+        
         while let Some(line) = lines.next() {
             if line.starts_with("pub const TEST_1") {
                 assert_eq!(
                     line,
-                    r#"pub const TEST_1: &str = obfuscate_str!("long enough test");"#
+                    r#"pub const TEST_1: &str = "long enough test";"#
                 );
                 let line_3 = lines.next().unwrap();
                 assert_eq!(line_3, r#"pub const TEST_2: &str = "test";"#);
