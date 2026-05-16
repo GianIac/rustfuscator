@@ -47,8 +47,8 @@ pub fn default_key() -> Key {
 }
 
 pub fn encrypt_string(input: &str, key: &Key) -> Result<(Vec<u8>, [u8; 12]), ObfuscatorError> {
-    let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
-        .map_err(|_| ObfuscatorError::EncryptionError)?;
+    let cipher =
+        Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_| ObfuscatorError::EncryptionError)?;
     let mut nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -58,13 +58,9 @@ pub fn encrypt_string(input: &str, key: &Key) -> Result<(Vec<u8>, [u8; 12]), Obf
     Ok((ciphertext, nonce_bytes))
 }
 
-pub fn decrypt_string(
-    data: &[u8],
-    nonce: &[u8; 12],
-    key: &Key,
-) -> Result<String, ObfuscatorError> {
-    let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
-        .map_err(|_| ObfuscatorError::EncryptionError)?;
+pub fn decrypt_string(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<String, ObfuscatorError> {
+    let cipher =
+        Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_| ObfuscatorError::EncryptionError)?;
     let nonce = Nonce::from_slice(nonce);
     let plaintext = cipher
         .decrypt(nonce, data)
@@ -112,6 +108,14 @@ mod tests {
         let (ct, nonce) = encrypt_string("hello", &k).unwrap();
         let pt = decrypt_string(&ct, &nonce, &k).unwrap();
         assert_eq!(pt, "hello");
+    }
+
+    #[test]
+    fn default_key_is_injected_by_build_script() {
+        assert!(
+            OBF_KEY_HEX.is_some(),
+            "OBF_KEY_HEX must be injected by the crate build script"
+        );
     }
 
     #[test]

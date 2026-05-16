@@ -2,6 +2,7 @@
 name = "rust_code_obfuscator_core"
 version = "0.3.0"
 edition = "2021"
+build = "src/build.rs"
 description = "Core encryption and obfuscation logic for rustfuscator"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"

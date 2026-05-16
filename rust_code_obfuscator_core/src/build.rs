@@ -18,17 +18,17 @@ fn main() {
         out
     } else {
         // Random per-build key
-        use rand::RngCore;
-        let mut tmp = [0u8; 32];
-        rand::rngs::OsRng.fill_bytes(&mut tmp);
-        tmp
+        rand::random()
     };
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let key_path = out_dir.join("obf_key.bin");
-    fs::write(&key_path, &key_bytes).expect("Failed to write obf_key.bin");
+    fs::write(&key_path, key_bytes).expect("Failed to write obf_key.bin");
 
-    let hex = key_bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+    let hex = key_bytes
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
     println!("cargo:rustc-env=OBF_KEY_HEX={}", hex);
 
     println!("cargo:rerun-if-env-changed=OBFUSCATOR_KEY_HEX");

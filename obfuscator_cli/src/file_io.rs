@@ -49,11 +49,11 @@ fn ensure_rust_file(file: &Path) -> Result<(), ObfuscatorError> {
         .is_some_and(|e| e.eq_ignore_ascii_case("rs"));
 
     if is_rs {
-        return Ok(());
+        Ok(())
     } else {
-        return Err(ObfuscatorError::InvalidFileExtension {
+        Err(ObfuscatorError::InvalidFileExtension {
             path: file.to_path_buf(),
-        });
+        })
     }
 }
 
