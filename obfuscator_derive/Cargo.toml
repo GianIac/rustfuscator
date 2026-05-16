@@ -9,6 +9,10 @@ repository = "https://github.com/GianIac/rustfuscator"
 [lib]
 proc-macro = true
 
+[features]
+default = []
+secure_zeroize = []
+
 [dependencies]
 syn = "2.0"
 quote = "1.0"

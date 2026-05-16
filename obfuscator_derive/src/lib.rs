@@ -118,6 +118,26 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
         }
     });
 
+    let secure_zeroize_drop = if cfg!(feature = "secure_zeroize") {
+        let zeroize_fields = fields.iter().map(|f| {
+            let name = &f.ident;
+            quote! {
+                self.#name.zeroize();
+            }
+        });
+
+        quote! {
+            impl ::core::ops::Drop for #name {
+                fn drop(&mut self) {
+                    use rust_code_obfuscator::zeroize::Zeroize;
+                    #(#zeroize_fields)*
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let expanded = quote! {
         #[derive(Clone)]
         #vis struct #obf_name {
@@ -137,6 +157,8 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
                 }
             }
         }
+
+        #secure_zeroize_drop
     };
 
     TokenStream::from(expanded)

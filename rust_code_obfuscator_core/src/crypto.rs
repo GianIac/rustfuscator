@@ -105,16 +105,41 @@ pub fn decrypt_string(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<String
     let plaintext = cipher
         .decrypt(nonce, data)
         .map_err(|_| ObfuscatorError::EncryptionError)?;
-    String::from_utf8(plaintext).map_err(|_| ObfuscatorError::EncryptionError)
+    match String::from_utf8(plaintext) {
+        Ok(value) => Ok(value),
+        Err(err) => {
+            #[cfg(feature = "secure_zeroize")]
+            {
+                let mut bytes = err.into_bytes();
+                bytes.zeroize();
+            }
+            #[cfg(not(feature = "secure_zeroize"))]
+            let _ = err;
+            Err(ObfuscatorError::EncryptionError)
+        }
+    }
 }
 
 pub fn encrypt_u32(input: u32, key: &Key) -> Result<(Vec<u8>, [u8; 12]), ObfuscatorError> {
-    encrypt_string(&input.to_string(), key)
+    let clear = input.to_string();
+    let encrypted = encrypt_string(&clear, key);
+    #[cfg(feature = "secure_zeroize")]
+    {
+        let mut clear = clear;
+        clear.zeroize();
+    }
+    encrypted
 }
 
 pub fn decrypt_u32(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<u32, ObfuscatorError> {
     let s = decrypt_string(data, nonce, key)?;
-    s.parse().map_err(|_| ObfuscatorError::EncryptionError)
+    let parsed = s.parse().map_err(|_| ObfuscatorError::EncryptionError);
+    #[cfg(feature = "secure_zeroize")]
+    {
+        let mut s = s;
+        s.zeroize();
+    }
+    parsed
 }
 
 #[cfg(test)]

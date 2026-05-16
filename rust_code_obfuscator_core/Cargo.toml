@@ -7,6 +7,10 @@ description = "Core encryption and obfuscation logic for rustfuscator"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
 
+[features]
+default = []
+secure_zeroize = []
+
 [build-dependencies]
 rand = "0.9.1"
 

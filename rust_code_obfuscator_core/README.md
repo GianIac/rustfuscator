@@ -31,3 +31,4 @@ The 256-bit AES key is no longer injected as one static byte/string sequence.
   ```
 - If unset, a random key is generated per build.
 - The runtime API returns Result (no unwrap() in crypto paths).
+- Enable the `secure_zeroize` feature to zeroize supported decrypted values and temporary clear buffers after use.
