@@ -1,6 +1,5 @@
 use crate::config::ObfuscateConfig;
 use anyhow::Result;
-use globset::{Glob, GlobSetBuilder};
 use quote::quote_spanned;
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use std::collections::{HashMap, HashSet};
@@ -19,39 +18,6 @@ pub fn process_file(
 ) -> Result<(String, bool, Option<String>)> {
     // (transformed, changed, before_for_diff)
     let source = fs::read_to_string(path)?;
-
-    let file_name = relative_path.to_string_lossy();
-    if let Some(skip_list) = &config.obfuscation.skip_files {
-        if skip_list.iter().any(|entry| file_name.ends_with(entry)) {
-            println!("Skipping file (matched skip_files): {}", file_name);
-            return Ok((source, false, None));
-        }
-    }
-
-    if let Some(include) = &config.include {
-        let mut builder = GlobSetBuilder::new();
-        if let Some(files) = &include.files {
-            for pattern in files {
-                builder.add(Glob::new(pattern)?);
-            }
-        }
-        let set = builder.build()?;
-
-        if !set.is_match(path) {
-            println!("Skipping file (not in include patterns): {}", file_name);
-            return Ok((source, false, None));
-        }
-
-        if let Some(exclude_patterns) = &include.exclude {
-            for pattern in exclude_patterns {
-                let exclude_glob = Glob::new(pattern)?;
-                if exclude_glob.compile_matcher().is_match(path) {
-                    println!("Skipping file (excluded by pattern): {}", file_name);
-                    return Ok((source, false, None));
-                }
-            }
-        }
-    }
 
     let mut syntax_tree = parse_file(&source)?;
 
@@ -722,8 +688,10 @@ mod tests {
     }
 
     #[test]
-    fn cfg_skip_files() {
-        let src = r#"pub const TEST: &str = "test";"#;
+    fn process_file_does_not_apply_file_skip_rules() {
+        let src = r#"pub fn message() {
+    let text: &str = "secret";
+}"#;
 
         let (_dir, path, relative_path) = create_rs_file(src);
         let skipped_files = Some(vec![String::from(relative_path.to_str().unwrap())]);
@@ -735,9 +703,8 @@ mod tests {
             false,
         )
         .unwrap();
-        let mut lines = out.lines();
-        let line_1 = lines.next().unwrap();
-        assert!(line_1 == src);
+
+        assert!(out.contains("obfuscate_str!(\"secret\")"));
     }
 
     #[test]

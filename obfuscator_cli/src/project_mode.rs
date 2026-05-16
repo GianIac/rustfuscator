@@ -6,6 +6,8 @@ use toml_edit::{value, DocumentMut, Item, Table};
 use walkdir::WalkDir;
 
 use crate::config::ObfuscateConfig;
+use crate::file_filter::filter_rust_files;
+use crate::file_io::gather_rust_files;
 use crate::file_io::write_transformed;
 use crate::processor::process_file;
 
@@ -65,19 +67,33 @@ fn transform_rust_files(
     diff_ctx: Option<usize>,
     verbose: bool,
 ) -> Result<()> {
-    for entry in WalkDir::new(project_root)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
-    {
-        let file_path = entry.path();
-        let relative = file_path.strip_prefix(project_root)?;
-        let (transformed, changed, before_opt) = process_file(file_path, relative, config, false)?;
+    let files = filter_rust_files(gather_rust_files(project_root)?, project_root, config)?;
+    println!(
+        "Found {} Rust files ({} selected, {} skipped)",
+        files.selected.len() + files.skipped.len(),
+        files.selected.len(),
+        files.skipped.len()
+    );
+    if verbose {
+        for skipped in &files.skipped {
+            println!(
+                "• [SKIP] {} ({})",
+                skipped.relative_path.display(),
+                skipped.reason
+            );
+        }
+    }
+
+    for file in files.selected {
+        let file_path = file.path;
+        let relative = file.relative_path;
+        let (transformed, changed, before_opt) =
+            process_file(&file_path, &relative, config, false)?;
 
         if verbose {
             println!(
                 "• {} {}",
-                if changed { "[CHANGED]" } else { "[SKIP]" },
+                if changed { "[CHANGED]" } else { "[UNCHANGED]" },
                 relative.display()
             );
         }
@@ -96,7 +112,7 @@ fn transform_rust_files(
             }
             if !dry_run {
                 println!("Writing {}", file_path.display());
-                write_transformed(file_path, &transformed, format)?;
+                write_transformed(&file_path, &transformed, format)?;
             }
         }
     }
