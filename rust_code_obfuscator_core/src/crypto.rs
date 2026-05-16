@@ -6,14 +6,23 @@ use zeroize::Zeroize;
 
 use crate::errors::ObfuscatorError;
 
-/// Optional compile-time environment set by build.rs
-const OBF_KEY_HEX: Option<&'static str> = option_env!("OBF_KEY_HEX");
+const KEY_LEN: usize = 32;
+const SALT_LEN: usize = 16;
+
+/// Optional compile-time key material set by build.rs.
+///
+/// The AES key is not embedded as a single static byte/string sequence. It is
+/// reconstructed from masked shares when `default_key()` is called.
+const OBF_KEY_SHARE_A_HEX: Option<&'static str> = option_env!("OBF_KEY_SHARE_A_HEX");
+const OBF_KEY_SHARE_B_HEX: Option<&'static str> = option_env!("OBF_KEY_SHARE_B_HEX");
+const OBF_KEY_SHARE_C_HEX: Option<&'static str> = option_env!("OBF_KEY_SHARE_C_HEX");
+const OBF_KEY_SALT_HEX: Option<&'static str> = option_env!("OBF_KEY_SALT_HEX");
 
 #[derive(Clone)]
-pub struct Key([u8; 32]);
+pub struct Key([u8; KEY_LEN]);
 
 impl Key {
-    pub fn as_bytes(&self) -> &[u8; 32] {
+    pub fn as_bytes(&self) -> &[u8; KEY_LEN] {
         &self.0
     }
 }
@@ -24,26 +33,57 @@ impl Drop for Key {
     }
 }
 
-fn parse_hex32(s: &str) -> Result<[u8; 32], ObfuscatorError> {
-    if s.len() != 64 || !s.chars().all(|c| c.is_ascii_hexdigit()) {
+fn parse_hex<const N: usize>(s: &str) -> Result<[u8; N], ObfuscatorError> {
+    if s.len() != N * 2 || !s.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(ObfuscatorError::EncryptionError);
     }
-    let mut out = [0u8; 32];
-    for i in 0..32 {
+    let mut out = [0u8; N];
+    for i in 0..N {
         out[i] = u8::from_str_radix(&s[2 * i..2 * i + 2], 16)
             .map_err(|_| ObfuscatorError::EncryptionError)?;
     }
     Ok(out)
 }
 
-/// Default key loaded at build-time (generated or from OBFUSCATOR_KEY_HEX via build.rs).
-/// Falls back to all-zeros in editor/rust-analyzer contexts where build.rs might not have run.
+/// Default key derived from build-time key shares.
+///
+/// Falls back to all-zeros only in editor/rust-analyzer contexts where build.rs
+/// might not have run.
 pub fn default_key() -> Key {
-    let k = match OBF_KEY_HEX {
-        Some(hex) => parse_hex32(hex).unwrap_or([0u8; 32]),
-        None => [0u8; 32], // dev-only fallback
-    };
-    Key(k)
+    derive_default_key().unwrap_or_else(|_| Key([0u8; KEY_LEN]))
+}
+
+fn derive_default_key() -> Result<Key, ObfuscatorError> {
+    let mut share_a =
+        parse_hex::<KEY_LEN>(OBF_KEY_SHARE_A_HEX.ok_or(ObfuscatorError::EncryptionError)?)?;
+    let mut share_b =
+        parse_hex::<KEY_LEN>(OBF_KEY_SHARE_B_HEX.ok_or(ObfuscatorError::EncryptionError)?)?;
+    let mut share_c =
+        parse_hex::<KEY_LEN>(OBF_KEY_SHARE_C_HEX.ok_or(ObfuscatorError::EncryptionError)?)?;
+    let mut salt =
+        parse_hex::<SALT_LEN>(OBF_KEY_SALT_HEX.ok_or(ObfuscatorError::EncryptionError)?)?;
+
+    let key = core::array::from_fn(|i| {
+        share_c[i]
+            ^ share_a[i].rotate_left(rotation(i))
+            ^ share_b[i].wrapping_add(offset(i))
+            ^ salt[i % SALT_LEN].rotate_right(rotation(KEY_LEN - 1 - i))
+    });
+
+    share_a.zeroize();
+    share_b.zeroize();
+    share_c.zeroize();
+    salt.zeroize();
+
+    Ok(Key(key))
+}
+
+fn rotation(index: usize) -> u32 {
+    (index % 7 + 1) as u32
+}
+
+fn offset(index: usize) -> u8 {
+    (index as u8).wrapping_mul(17).wrapping_add(91)
 }
 
 pub fn encrypt_string(input: &str, key: &Key) -> Result<(Vec<u8>, [u8; 12]), ObfuscatorError> {
@@ -113,9 +153,17 @@ mod tests {
     #[test]
     fn default_key_is_injected_by_build_script() {
         assert!(
-            OBF_KEY_HEX.is_some(),
-            "OBF_KEY_HEX must be injected by the crate build script"
+            OBF_KEY_SHARE_A_HEX.is_some()
+                && OBF_KEY_SHARE_B_HEX.is_some()
+                && OBF_KEY_SHARE_C_HEX.is_some()
+                && OBF_KEY_SALT_HEX.is_some(),
+            "obfuscated key shares must be injected by the crate build script"
         );
+    }
+
+    #[test]
+    fn raw_default_key_is_not_embedded_as_single_hex_secret() {
+        assert!(option_env!("OBF_KEY_HEX").is_none());
     }
 
     #[test]
