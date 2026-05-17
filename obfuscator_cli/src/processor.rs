@@ -1,13 +1,14 @@
 use crate::config::ObfuscateConfig;
 use anyhow::Result;
-use quote::quote_spanned;
+use quote::{quote, quote_spanned};
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::{
-    parse_file, visit_mut::VisitMut, Expr, ExprForLoop, ExprIf, ExprLit, ExprLoop, ExprMatch,
-    ExprWhile, Ident, ItemFn, Lit, LocalInit, Pat, PatIdent, Stmt, Type,
+    parse::Parser, parse_file, punctuated::Punctuated, visit_mut::VisitMut, Expr, ExprForLoop,
+    ExprIf, ExprLit, ExprLoop, ExprMatch, ExprWhile, Ident, ItemFn, Lit, LocalInit, Pat, PatIdent,
+    Stmt, Token, Type,
 };
 
 pub fn process_file(
@@ -36,6 +37,13 @@ pub fn process_file(
             .unwrap_or_default(),
         obfuscate_strings: config.obfuscation.strings,
         obfuscate_flow: config.obfuscation.control_flow,
+        obfuscate_logging: config.obfuscation.obfuscate_logging.unwrap_or(false),
+        logging_macros: logging_macro_set(config),
+        ignore_logging_messages: config
+            .logging_macros
+            .as_ref()
+            .and_then(|logging| logging.ignore_messages.clone())
+            .unwrap_or_default(),
         skip_attributes: config.obfuscation.skip_attributes.unwrap_or(false),
         renamed_idents: HashMap::new(),
         obfuscated_vars: HashSet::new(),
@@ -119,6 +127,9 @@ struct ObfuscationTransformer {
     preserve_idents: Vec<String>,
     obfuscate_strings: bool,
     obfuscate_flow: bool,
+    obfuscate_logging: bool,
+    logging_macros: HashSet<String>,
+    ignore_logging_messages: Vec<String>,
     skip_attributes: bool,
     renamed_idents: HashMap<String, Ident>,
     obfuscated_vars: HashSet<String>,
@@ -282,6 +293,17 @@ impl VisitMut for ObfuscationTransformer {
         syn::visit_mut::visit_attribute_mut(self, attr);
     }
 
+    fn visit_macro_mut(&mut self, node: &mut syn::Macro) {
+        if self.obfuscate_logging
+            && self.logging_macros.contains(&macro_path_name(&node.path))
+            && self.obfuscate_logging_macro(node)
+        {
+            self.used_obfuscate_str = true;
+        }
+
+        syn::visit_mut::visit_macro_mut(self, node);
+    }
+
     fn visit_expr_if_mut(&mut self, node: &mut ExprIf) {
         if self.obfuscate_flow {
             self.used_obfuscate_flow = true;
@@ -408,6 +430,59 @@ impl VisitMut for ObfuscationTransformer {
 }
 
 impl ObfuscationTransformer {
+    fn obfuscate_logging_macro(&self, node: &mut syn::Macro) -> bool {
+        let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
+        let Ok(args) = parser.parse2(node.tokens.clone()) else {
+            return false;
+        };
+        let mut args_iter = args.into_iter();
+        let Some(Expr::Lit(ExprLit {
+            lit: Lit::Str(format_lit),
+            ..
+        })) = args_iter.next()
+        else {
+            return false;
+        };
+
+        let format_value = format_lit.value();
+        if self.should_ignore_logging_message(&format_value) {
+            return false;
+        }
+
+        let Some(rewrite) = rewrite_format_literal(
+            &format_value,
+            self.min_string_length,
+            &self.ignore_logging_messages,
+        ) else {
+            return false;
+        };
+
+        let mut rewritten_args = Punctuated::<Expr, Token![,]>::new();
+        let rewritten_format = rewrite.format;
+        rewritten_args.push(syn::parse_quote! { #rewritten_format });
+
+        for text in rewrite.obfuscated_text {
+            rewritten_args.push(syn::parse_quote! { obfuscate_str!(#text) });
+        }
+
+        for arg in args_iter {
+            rewritten_args.push(arg);
+        }
+
+        node.tokens = quote! { #rewritten_args };
+        true
+    }
+
+    fn should_ignore_logging_message(&self, value: &str) -> bool {
+        self.ignore_logging_messages
+            .iter()
+            .any(|ignored| ignored == value)
+            || self
+                .ignore_strings
+                .as_ref()
+                .is_some_and(|ignored| ignored.iter().any(|item| item == value))
+    }
+
     fn rename_ident(&mut self, ident: &Ident, separator: &str) -> Option<Ident> {
         let original = ident.to_string();
         if self.preserve_idents.contains(&original) {
@@ -423,6 +498,167 @@ impl ObfuscationTransformer {
         self.renamed_idents.insert(original, new_ident.clone());
         Some(new_ident)
     }
+}
+
+struct FormatRewrite {
+    format: String,
+    obfuscated_text: Vec<String>,
+}
+
+enum FormatPiece {
+    Text(String),
+    Placeholder(String),
+}
+
+fn rewrite_format_literal(
+    format: &str,
+    min_string_length: Option<usize>,
+    ignore_messages: &[String],
+) -> Option<FormatRewrite> {
+    let pieces = parse_format_pieces(format)?;
+    if pieces
+        .iter()
+        .any(|piece| matches!(piece, FormatPiece::Placeholder(placeholder) if has_explicit_position(placeholder)))
+    {
+        return None;
+    }
+
+    let mut rewritten = String::new();
+    let mut obfuscated_text = Vec::new();
+
+    for piece in pieces {
+        match piece {
+            FormatPiece::Text(text) => {
+                if should_obfuscate_logging_text(&text, min_string_length, ignore_messages) {
+                    rewritten.push_str("{}");
+                    obfuscated_text.push(text);
+                } else {
+                    push_escaped_format_text(&mut rewritten, &text);
+                }
+            }
+            FormatPiece::Placeholder(placeholder) => rewritten.push_str(&placeholder),
+        }
+    }
+
+    if obfuscated_text.is_empty() {
+        return None;
+    }
+
+    Some(FormatRewrite {
+        format: rewritten,
+        obfuscated_text,
+    })
+}
+
+fn parse_format_pieces(format: &str) -> Option<Vec<FormatPiece>> {
+    let mut chars = format.chars().peekable();
+    let mut text = String::new();
+    let mut pieces = Vec::new();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '{' if chars.peek() == Some(&'{') => {
+                chars.next();
+                text.push('{');
+            }
+            '}' if chars.peek() == Some(&'}') => {
+                chars.next();
+                text.push('}');
+            }
+            '{' => {
+                if !text.is_empty() {
+                    pieces.push(FormatPiece::Text(std::mem::take(&mut text)));
+                }
+                let mut placeholder = String::from("{");
+                let mut closed = false;
+                for inner in chars.by_ref() {
+                    placeholder.push(inner);
+                    if inner == '}' {
+                        closed = true;
+                        break;
+                    }
+                }
+                if !closed {
+                    return None;
+                }
+                pieces.push(FormatPiece::Placeholder(placeholder));
+            }
+            '}' => return None,
+            _ => text.push(ch),
+        }
+    }
+
+    if !text.is_empty() {
+        pieces.push(FormatPiece::Text(text));
+    }
+
+    Some(pieces)
+}
+
+fn should_obfuscate_logging_text(
+    text: &str,
+    min_string_length: Option<usize>,
+    ignore_messages: &[String],
+) -> bool {
+    !text.is_empty()
+        && min_string_length.is_none_or(|min| text.len() >= min)
+        && !ignore_messages.iter().any(|ignored| ignored == text)
+}
+
+fn push_escaped_format_text(format: &mut String, text: &str) {
+    for ch in text.chars() {
+        match ch {
+            '{' => format.push_str("{{"),
+            '}' => format.push_str("}}"),
+            _ => format.push(ch),
+        }
+    }
+}
+
+fn has_explicit_position(placeholder: &str) -> bool {
+    placeholder
+        .trim_start_matches('{')
+        .chars()
+        .next()
+        .is_some_and(|ch| ch.is_ascii_digit())
+}
+
+fn logging_macro_set(config: &ObfuscateConfig) -> HashSet<String> {
+    config
+        .logging_macros
+        .as_ref()
+        .and_then(|logging| logging.enabled.clone())
+        .unwrap_or_else(default_logging_macros)
+        .into_iter()
+        .collect()
+}
+
+fn default_logging_macros() -> Vec<String> {
+    [
+        "println",
+        "eprintln",
+        "log::trace",
+        "log::debug",
+        "log::info",
+        "log::warn",
+        "log::error",
+        "tracing::trace",
+        "tracing::debug",
+        "tracing::info",
+        "tracing::warn",
+        "tracing::error",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
+fn macro_path_name(path: &syn::Path) -> String {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::")
 }
 
 fn collect_idents_from_pat(pat: &Pat) -> Option<Ident> {
@@ -487,11 +723,36 @@ mod tests {
                 min_string_length: min_str_len,
                 ignore_strings: ignore_strings,
                 control_flow: flow,
+                obfuscate_logging: None,
                 skip_files: skip_files,
                 skip_attributes: skip_attributes,
             },
             identifiers: None,
             include: None,
+            logging_macros: None,
+        }
+    }
+
+    fn cfg_with_logging(
+        enabled: Option<Vec<String>>,
+        ignore_messages: Option<Vec<String>>,
+    ) -> ObfuscateConfig {
+        ObfuscateConfig {
+            obfuscation: ObfuscationSection {
+                strings: false,
+                min_string_length: None,
+                ignore_strings: None,
+                control_flow: false,
+                obfuscate_logging: Some(true),
+                skip_files: None,
+                skip_attributes: None,
+            },
+            identifiers: None,
+            include: None,
+            logging_macros: Some(crate::config::LoggingMacrosSection {
+                enabled,
+                ignore_messages,
+            }),
         }
     }
 
@@ -502,6 +763,7 @@ mod tests {
                 min_string_length: None,
                 ignore_strings: None,
                 control_flow: false,
+                obfuscate_logging: None,
                 skip_files: None,
                 skip_attributes: None,
             },
@@ -510,6 +772,7 @@ mod tests {
                 preserve: None,
             }),
             include: None,
+            logging_macros: None,
         }
     }
 
@@ -529,6 +792,9 @@ mod tests {
             preserve_idents: vec![],
             obfuscate_strings: obfuscate_strings,
             obfuscate_flow: obfuscate_flow,
+            obfuscate_logging: false,
+            logging_macros: default_logging_macros().into_iter().collect(),
+            ignore_logging_messages: vec![],
             skip_attributes: skip_attributes,
             renamed_idents: HashMap::new(),
             obfuscated_vars: HashSet::new(),
@@ -852,6 +1118,107 @@ pub fn hello() {
             out.contains("use rust_code_obfuscator::obfuscate_str;"),
             "missing exact obfuscate_str import:\n{out}"
         );
+    }
+
+    #[test]
+    fn logging_obfuscation_rewrites_plain_println_literal() {
+        let src = r#"pub fn hello() {
+    println!("Debug info");
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_logging(Some(vec!["println".to_string()]), None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("use rust_code_obfuscator::obfuscate_str;"));
+        assert!(out.contains("println!(\"{}\", obfuscate_str!(\"Debug info\"));"));
+        assert!(!out.contains("println!(\"Debug info\")"));
+    }
+
+    #[test]
+    fn logging_obfuscation_rewrites_text_around_format_placeholders() {
+        let src = r#"pub fn hello(error: &str) {
+    eprintln!("Error: {}", error);
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_logging(Some(vec!["eprintln".to_string()]), None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("eprintln!(\"{}{}\", obfuscate_str!(\"Error: \"), error);"));
+        assert!(!out.contains("\"Error: {}\""));
+    }
+
+    #[test]
+    fn logging_obfuscation_supports_qualified_macro_paths() {
+        let src = r#"pub fn hello() {
+    log::info!("Server started");
+    tracing::warn!("Skipped");
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_logging(Some(vec!["log::info".to_string()]), None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("log::info!(\"{}\", obfuscate_str!(\"Server started\"));"));
+        assert!(out.contains("tracing::warn!(\"Skipped\");"));
+    }
+
+    #[test]
+    fn logging_obfuscation_respects_ignore_messages() {
+        let src = r#"pub fn hello() {
+    println!("DEBUG");
+    println!("Keep me secret");
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_logging(
+                Some(vec!["println".to_string()]),
+                Some(vec!["DEBUG".to_string()]),
+            ),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("println!(\"DEBUG\");"));
+        assert!(out.contains("println!(\"{}\", obfuscate_str!(\"Keep me secret\"));"));
+    }
+
+    #[test]
+    fn logging_obfuscation_is_opt_in() {
+        let src = r#"pub fn hello() {
+    println!("Debug info");
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg(false, None, None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("println!(\"Debug info\");"));
+        assert!(!out.contains("obfuscate_str!"));
     }
 
     #[test]

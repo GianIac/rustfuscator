@@ -140,6 +140,7 @@ strings = true
 min_string_length = 4
 ignore_strings = ["DEBUG", "LOG"]
 control_flow = true
+obfuscate_logging = true
 skip_files = ["src/main.rs"]
 skip_attributes = true
 
@@ -150,6 +151,10 @@ preserve = ["main"]
 [include]
 files = ["**/*.rs"]
 exclude = ["target/**", "tests/**"]
+
+[logging_macros]
+enabled = ["println", "eprintln", "log::info", "log::warn", "log::error", "tracing::info", "tracing::warn"]
+ignore_messages = ["DEBUG", "TRACE", "startup ok"]
 "#;
 
     let path = target.join(".obfuscate.toml");
