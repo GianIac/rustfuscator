@@ -10,6 +10,7 @@ repository = "https://github.com/GianIac/rustfuscator"
 [features]
 default = []
 secure_zeroize = []
+verify_literals = []
 
 [build-dependencies]
 rand = "0.9.1"

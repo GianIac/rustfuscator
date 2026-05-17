@@ -25,6 +25,7 @@ secure_zeroize = [
     "rust_code_obfuscator_core/secure_zeroize",
     "obfuscator_derive/secure_zeroize"
 ]
+verify_literals = ["rust_code_obfuscator_core/verify_literals"]
 
 [dependencies]
 cryptify = "3.1.1"

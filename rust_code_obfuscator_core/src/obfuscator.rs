@@ -5,6 +5,7 @@ macro_rules! obfuscate_string {
             static CELL: ::std::sync::OnceLock<&'static str> = ::std::sync::OnceLock::new();
             *CELL.get_or_init(|| {
                 let decrypted: ::std::string::String = cryptify::encrypt_string!($s);
+                $crate::obfuscator::__verify_literal_round_trip($s, decrypted.as_str());
                 ::std::boxed::Box::leak(decrypted.into_boxed_str())
             })
         }
@@ -49,10 +50,42 @@ macro_rules! obfuscate_dummy_branch {
     };
 }
 
+#[doc(hidden)]
+#[inline]
+pub fn __verify_literal_round_trip(original: &str, decrypted: &str) {
+    #[cfg(all(debug_assertions, feature = "verify_literals"))]
+    {
+        debug_assert_eq!(
+            decrypted, original,
+            "rustfuscator literal verification failed: decrypted value differs from original"
+        );
+    }
+
+    #[cfg(not(all(debug_assertions, feature = "verify_literals")))]
+    {
+        let _ = (original, decrypted);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
+    fn obfuscate_string_macro_round_trips_literal() {
+        assert_eq!(
+            crate::obfuscate_string!("verified literal").as_str(),
+            "verified literal"
+        );
+    }
+
+    #[test]
     fn dummy_branch_macro_is_safe_to_execute() {
         crate::obfuscate_dummy_branch!();
+    }
+
+    #[cfg(all(debug_assertions, feature = "verify_literals"))]
+    #[test]
+    #[should_panic(expected = "rustfuscator literal verification failed")]
+    fn literal_verification_panics_on_mismatch_when_enabled() {
+        super::__verify_literal_round_trip("original", "different");
     }
 }
