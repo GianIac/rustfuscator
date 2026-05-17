@@ -88,8 +88,6 @@ fn main() -> Result<()> {
             let relative = file.relative_path;
             println!("\nProcessing: {}", file_path.display());
 
-            dbg!(&relative);
-
             let (transformed, changed, before_opt) =
                 processor::process_file(&file_path, &relative, &config, args.json)?;
 

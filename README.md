@@ -126,7 +126,7 @@ Add the library:
 
 ```toml
 [dependencies]
-rust_code_obfuscator = "0.3.0"
+rust_code_obfuscator = "0.3.1"
 ```
 
 Use macros directly:
@@ -200,7 +200,7 @@ Benchmark results are workload-specific; use them to estimate overhead for your 
 
 ```toml
 [dependencies]
-rust_code_obfuscator = { version = "0.3.0", features = ["secure_zeroize", "verify_literals"] }
+rust_code_obfuscator = { version = "0.3.1", features = ["secure_zeroize", "verify_literals"] }
 ```
 
 - `secure_zeroize`: zeroizes supported clear values and temporary clear buffers.
