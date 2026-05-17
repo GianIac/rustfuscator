@@ -33,3 +33,4 @@ The 256-bit AES key is no longer injected as one static byte/string sequence.
 - The runtime API returns Result (no unwrap() in crypto paths).
 - Enable the `secure_zeroize` feature to zeroize supported decrypted values and temporary clear buffers after use.
 - Enable the `verify_literals` feature to add debug-only round-trip assertions inside `obfuscate_string!` / `obfuscate_str!`.
+- Use `obfuscate_num!` for lightweight integer literal obfuscation; floats and arbitrary numeric expressions are intentionally out of scope.
