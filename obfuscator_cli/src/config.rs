@@ -14,6 +14,7 @@ pub struct ObfuscationSection {
     pub min_string_length: Option<usize>,
     pub ignore_strings: Option<Vec<String>>,
     pub control_flow: bool,
+    pub control_flow_files: Option<Vec<String>>,
     pub obfuscate_logging: Option<bool>,
     pub skip_files: Option<Vec<String>>,
     pub skip_attributes: Option<bool>,

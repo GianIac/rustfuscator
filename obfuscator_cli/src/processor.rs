@@ -1,5 +1,6 @@
 use crate::config::ObfuscateConfig;
 use anyhow::Result;
+use globset::{Glob, GlobSetBuilder};
 use quote::{quote, quote_spanned};
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use std::collections::{HashMap, HashSet};
@@ -36,7 +37,7 @@ pub fn process_file(
             .and_then(|id| id.preserve.clone())
             .unwrap_or_default(),
         obfuscate_strings: config.obfuscation.strings,
-        obfuscate_flow: config.obfuscation.control_flow,
+        obfuscate_flow: should_obfuscate_flow(config, relative_path)?,
         obfuscate_logging: config.obfuscation.obfuscate_logging.unwrap_or(false),
         logging_macros: logging_macro_set(config),
         ignore_logging_messages: config
@@ -661,6 +662,25 @@ fn macro_path_name(path: &syn::Path) -> String {
         .join("::")
 }
 
+fn should_obfuscate_flow(config: &ObfuscateConfig, relative_path: &Path) -> Result<bool> {
+    if !config.obfuscation.control_flow {
+        return Ok(false);
+    }
+
+    let Some(patterns) = config.obfuscation.control_flow_files.as_ref() else {
+        return Ok(true);
+    };
+    if patterns.is_empty() || patterns.iter().any(|pattern| pattern == "*") {
+        return Ok(true);
+    }
+
+    let mut builder = GlobSetBuilder::new();
+    for pattern in patterns {
+        builder.add(Glob::new(pattern)?);
+    }
+    Ok(builder.build()?.is_match(relative_path))
+}
+
 fn collect_idents_from_pat(pat: &Pat) -> Option<Ident> {
     match pat {
         Pat::Ident(p) => Some(p.ident.clone()),
@@ -723,6 +743,7 @@ mod tests {
                 min_string_length: min_str_len,
                 ignore_strings: ignore_strings,
                 control_flow: flow,
+                control_flow_files: None,
                 obfuscate_logging: None,
                 skip_files: skip_files,
                 skip_attributes: skip_attributes,
@@ -743,6 +764,7 @@ mod tests {
                 min_string_length: None,
                 ignore_strings: None,
                 control_flow: false,
+                control_flow_files: None,
                 obfuscate_logging: Some(true),
                 skip_files: None,
                 skip_attributes: None,
@@ -756,6 +778,24 @@ mod tests {
         }
     }
 
+    fn cfg_with_control_flow_files(patterns: Option<Vec<String>>) -> ObfuscateConfig {
+        ObfuscateConfig {
+            obfuscation: ObfuscationSection {
+                strings: false,
+                min_string_length: None,
+                ignore_strings: None,
+                control_flow: true,
+                control_flow_files: patterns,
+                obfuscate_logging: None,
+                skip_files: None,
+                skip_attributes: None,
+            },
+            identifiers: None,
+            include: None,
+            logging_macros: None,
+        }
+    }
+
     fn cfg_with_rename(rename: bool) -> ObfuscateConfig {
         ObfuscateConfig {
             obfuscation: ObfuscationSection {
@@ -763,6 +803,7 @@ mod tests {
                 min_string_length: None,
                 ignore_strings: None,
                 control_flow: false,
+                control_flow_files: None,
                 obfuscate_logging: None,
                 skip_files: None,
                 skip_attributes: None,
@@ -1029,6 +1070,60 @@ pub const TEST: &str = "test";"#;
         let line_4: &str = lines.next().unwrap();
         assert_eq!(line_1, r#"use rust_code_obfuscator::obfuscate_flow;"#);
         assert_eq!(line_4.trim(), r#"obfuscate_flow!();"#);
+    }
+
+    #[test]
+    fn cfg_flow_files_missing_keeps_existing_apply_all_behavior() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, _relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            Path::new("src/not_listed.rs"),
+            &cfg_with_control_flow_files(None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("obfuscate_flow!();"));
+    }
+
+    #[test]
+    fn cfg_flow_files_applies_only_to_matching_relative_paths() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, _relative_path) = create_rs_file(src);
+        let cfg = cfg_with_control_flow_files(Some(vec!["src/secure/**".to_string()]));
+
+        let (matched, _changed, _before) =
+            super::process_file(&path, Path::new("src/secure/auth.rs"), &cfg, false).unwrap();
+        let (not_matched, _changed, _before) =
+            super::process_file(&path, Path::new("src/public/auth.rs"), &cfg, false).unwrap();
+
+        assert!(matched.contains("obfuscate_flow!();"));
+        assert!(!not_matched.contains("obfuscate_flow!();"));
+    }
+
+    #[test]
+    fn cfg_flow_files_star_matches_every_processed_file() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, _relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            Path::new("src/anything.rs"),
+            &cfg_with_control_flow_files(Some(vec!["*".to_string()])),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("obfuscate_flow!();"));
     }
 
     #[test]

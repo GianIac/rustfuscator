@@ -177,6 +177,7 @@ mod tests {
                 min_string_length: None,
                 ignore_strings: None,
                 control_flow: false,
+                control_flow_files: None,
                 obfuscate_logging: None,
                 skip_files,
                 skip_attributes: None,
