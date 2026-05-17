@@ -1,16 +1,18 @@
 mod cli;
+mod config;
+mod file_filter;
 mod file_io;
 mod processor;
 mod project_mode;
-mod config;
 mod utils;
 
 use anyhow::{bail, Result};
 use clap::Parser;
 use cli::Cli;
 use config::ObfuscateConfig;
-use std::{fs, path::Path};
+use file_filter::filter_rust_files;
 use similar::TextDiff;
+use std::{fs, path::Path};
 
 fn main() -> Result<()> {
     let args = Cli::parse();
@@ -48,7 +50,15 @@ fn main() -> Result<()> {
         // --diff=5        => Some(Some(5))
         // (no --diff) => None
         let diff_ctx = args.diff.map(|opt| opt.unwrap_or(3));
-        project_mode::process_project(&args.input, output, args.format, &config, args.dry_run, diff_ctx, args.verbose)?;
+        project_mode::process_project(
+            &args.input,
+            output,
+            args.format,
+            &config,
+            args.dry_run,
+            diff_ctx,
+            args.verbose,
+        )?;
     } else {
         println!("Running in single-file mode...");
         if !output.exists() {
@@ -56,27 +66,41 @@ fn main() -> Result<()> {
         }
 
         let files = file_io::gather_rust_files(&args.input)?;
-        println!("Found {} files", files.len());
+        let files = filter_rust_files(files, &args.input, &config)?;
+        println!(
+            "Found {} Rust files ({} selected, {} skipped)",
+            files.selected.len() + files.skipped.len(),
+            files.selected.len(),
+            files.skipped.len()
+        );
+        if args.verbose {
+            for skipped in &files.skipped {
+                println!(
+                    "• [SKIP] {} ({})",
+                    skipped.relative_path.display(),
+                    skipped.reason
+                );
+            }
+        }
         let diff_ctx = args.diff.map(|opt| opt.unwrap_or(3));
-        for file_path in files {
+        for file in files.selected {
+            let file_path = file.path;
+            let relative = file.relative_path;
             println!("\nProcessing: {}", file_path.display());
 
-            let relative = if args.input.is_file() {
-                std::path::Path::new(file_path.file_name().unwrap())
-            } else {
-                file_path.strip_prefix(&args.input)?
-            };
-
-            dbg!(relative);
-
-            let (transformed, changed, before_opt) = processor::process_file(&file_path, relative, &config, args.json)?;
+            let (transformed, changed, before_opt) =
+                processor::process_file(&file_path, &relative, &config, args.json)?;
 
             if args.json {
                 continue;
             }
 
             if args.verbose {
-                println!("• {} {}", if changed { "[CHANGED]" } else { "[SKIP]" }, relative.display());
+                println!(
+                    "• {} {}",
+                    if changed { "[CHANGED]" } else { "[UNCHANGED]" },
+                    relative.display()
+                );
             }
 
             if changed {
@@ -84,12 +108,15 @@ fn main() -> Result<()> {
                     if let Some(before) = before_opt.as_ref() {
                         let diff = TextDiff::from_lines(before, &transformed);
                         let old = format!("{} (before)", relative.display());
-                        let new = format!("{} (after)",  relative.display());
-                        println!("{}", diff.unified_diff().context_radius(ctx).header(&old, &new));
+                        let new = format!("{} (after)", relative.display());
+                        println!(
+                            "{}",
+                            diff.unified_diff().context_radius(ctx).header(&old, &new)
+                        );
                     }
                 }
                 if !args.dry_run {
-                    let output_path = output.join(relative);
+                    let output_path = output.join(&relative);
                     println!("Writing to: {}", output_path.display());
                     file_io::write_transformed(&output_path, &transformed, args.format)?;
                 }
@@ -111,16 +138,24 @@ strings = true
 min_string_length = 4
 ignore_strings = ["DEBUG", "LOG"]
 control_flow = true
+control_flow_files = ["**/*.rs"]
+dummy_branches = false
+obfuscate_logging = true
 skip_files = ["src/main.rs"]
 skip_attributes = true
 
 [identifiers]
 rename = false
+strategy = "suffix"
 preserve = ["main"]
 
 [include]
 files = ["**/*.rs"]
 exclude = ["target/**", "tests/**"]
+
+[logging_macros]
+enabled = ["println", "eprintln", "log::info", "log::warn", "log::error", "tracing::info", "tracing::warn"]
+ignore_messages = ["DEBUG", "TRACE", "startup ok"]
 "#;
 
     let path = target.join(".obfuscate.toml");

@@ -1,11 +1,13 @@
 use anyhow::{bail, Context, Result};
+use similar::TextDiff;
 use std::fs;
 use std::path::Path;
+use toml_edit::{value, DocumentMut, Item, Table};
 use walkdir::WalkDir;
-use toml_edit::{DocumentMut, Item, Table, value};
-use similar::TextDiff;
 
 use crate::config::ObfuscateConfig;
+use crate::file_filter::filter_rust_files;
+use crate::file_io::gather_rust_files;
 use crate::file_io::write_transformed;
 use crate::processor::process_file;
 
@@ -20,12 +22,16 @@ pub fn process_project(
 ) -> Result<()> {
     if dry_run {
         println!("Dry run: scanning project without copying...");
-        transform_rust_files(input, config, /*format=*/false, /*dry_run=*/true, diff_ctx, verbose)?;
+        transform_rust_files(
+            input, config, /*format=*/ false, /*dry_run=*/ true, diff_ctx, verbose,
+        )?;
         return Ok(());
     }
 
     copy_full_structure(input, output)?;
-    transform_rust_files(output, config, format, /*dry_run=*/false, diff_ctx, verbose)?;
+    transform_rust_files(
+        output, config, format, /*dry_run=*/ false, diff_ctx, verbose,
+    )?;
     patch_cargo_toml(output)?;
 
     if format {
@@ -43,8 +49,13 @@ fn copy_full_structure(input: &Path, output: &Path) -> Result<()> {
         content_only: false,
         ..Default::default()
     };
-    fs_extra::dir::copy(input, output, &options)
-        .with_context(|| format!("Error copying from {} to {}", input.display(), output.display()))?;
+    fs_extra::dir::copy(input, output, &options).with_context(|| {
+        format!(
+            "Error copying from {} to {}",
+            input.display(),
+            output.display()
+        )
+    })?;
     Ok(())
 }
 
@@ -56,17 +67,35 @@ fn transform_rust_files(
     diff_ctx: Option<usize>,
     verbose: bool,
 ) -> Result<()> {
-    for entry in WalkDir::new(project_root)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
-    {
-        let file_path = entry.path();
-        let relative = file_path.strip_prefix(project_root)?;
-        let (transformed, changed, before_opt) = process_file(file_path, relative, config, false)?;
+    let files = filter_rust_files(gather_rust_files(project_root)?, project_root, config)?;
+    println!(
+        "Found {} Rust files ({} selected, {} skipped)",
+        files.selected.len() + files.skipped.len(),
+        files.selected.len(),
+        files.skipped.len()
+    );
+    if verbose {
+        for skipped in &files.skipped {
+            println!(
+                "• [SKIP] {} ({})",
+                skipped.relative_path.display(),
+                skipped.reason
+            );
+        }
+    }
+
+    for file in files.selected {
+        let file_path = file.path;
+        let relative = file.relative_path;
+        let (transformed, changed, before_opt) =
+            process_file(&file_path, &relative, config, false)?;
 
         if verbose {
-            println!("• {} {}", if changed { "[CHANGED]" } else { "[SKIP]" }, relative.display());
+            println!(
+                "• {} {}",
+                if changed { "[CHANGED]" } else { "[UNCHANGED]" },
+                relative.display()
+            );
         }
 
         if changed {
@@ -74,8 +103,11 @@ fn transform_rust_files(
                 if let Some(before) = before_opt.as_ref() {
                     let diff = TextDiff::from_lines(before, &transformed);
                     let old = format!("{} (before)", relative.display());
-                    let new = format!("{} (after)",  relative.display());
-                    println!("{}", diff.unified_diff().context_radius(ctx).header(&old, &new));
+                    let new = format!("{} (after)", relative.display());
+                    println!(
+                        "{}",
+                        diff.unified_diff().context_radius(ctx).header(&old, &new)
+                    );
                 }
             }
             if !dry_run {
@@ -100,7 +132,10 @@ fn patch_cargo_toml(project_root: &Path) -> Result<()> {
 
         // Skip virtual manifests
         if !doc.contains_key("package") {
-            println!("Skipping patch: {} is a virtual manifest", cargo_path.display());
+            println!(
+                "Skipping patch: {} is a virtual manifest",
+                cargo_path.display()
+            );
             continue;
         }
 
@@ -114,7 +149,7 @@ fn patch_cargo_toml(project_root: &Path) -> Result<()> {
 
         // Only insert if not already present
         if !deps.contains_key("rust_code_obfuscator") {
-            deps.insert("rust_code_obfuscator", value("0.3.0"));
+            deps.insert("rust_code_obfuscator", value("0.3.1"));
         }
         if !deps.contains_key("cryptify") {
             deps.insert("cryptify", value("3.1.1"));
@@ -146,12 +181,10 @@ fn format_rust_files(project_root: &Path) -> Result<()> {
     for entry in WalkDir::new(project_root)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "rs"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
     {
         let path = entry.path();
-        let result = std::process::Command::new("rustfmt")
-            .arg(path)
-            .output();
+        let result = std::process::Command::new("rustfmt").arg(path).output();
 
         if let Err(e) = result {
             eprintln!("Warning: Failed to format {}: {}", path.display(), e);

@@ -17,11 +17,12 @@ It is **not** a standalone crate — it powers the procedural macros and CLI-lev
 
 ### Note about Key management for crypto.rs
 
-Now uses build-time key management, the key is injected via `build.rs`:
-- If `OBFUSCATOR_KEY_HEX` (64 hex chars) is set, that value is used.
-- Otherwise, a random 32-byte key is generated for the build.
+Now uses build-time key management with runtime key derivation:
+- If `OBFUSCATOR_KEY_HEX` (64 hex chars) is set, that value is used as the source key.
+- Otherwise, a random 32-byte source key is generated for the build.
+- The source key is split into masked build-time shares and reconstructed at runtime.
 
-A 256-bit AES key is provided at build time (not in source code).
+The 256-bit AES key is no longer injected as one static byte/string sequence.
 
 - Deterministic builds:
   ```bash
@@ -30,3 +31,6 @@ A 256-bit AES key is provided at build time (not in source code).
   ```
 - If unset, a random key is generated per build.
 - The runtime API returns Result (no unwrap() in crypto paths).
+- Enable the `secure_zeroize` feature to zeroize supported decrypted values and temporary clear buffers after use.
+- Enable the `verify_literals` feature to add debug-only round-trip assertions inside `obfuscate_string!` / `obfuscate_str!`.
+- Use `obfuscate_num!` for lightweight integer literal obfuscation; floats and arbitrary numeric expressions are intentionally out of scope.

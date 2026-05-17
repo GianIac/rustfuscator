@@ -1,10 +1,16 @@
 [package]
 name = "rust_code_obfuscator_core"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
+build = "src/build.rs"
 description = "Core encryption and obfuscation logic for rustfuscator"
 license = "MIT"
 repository = "https://github.com/GianIac/rustfuscator"
+
+[features]
+default = []
+secure_zeroize = []
+verify_literals = []
 
 [build-dependencies]
 rand = "0.9.1"
