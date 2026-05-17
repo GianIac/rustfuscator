@@ -5,6 +5,7 @@ use quote::{quote, quote_spanned};
 use rust_code_obfuscator_core::utils::generate_obf_suffix;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use syn::{
     parse::Parser, parse_file, punctuated::Punctuated, visit_mut::VisitMut, Expr, ExprForLoop,
@@ -36,6 +37,7 @@ pub fn process_file(
             .as_ref()
             .and_then(|id| id.preserve.clone())
             .unwrap_or_default(),
+        rename_strategy: rename_strategy(config),
         obfuscate_strings: config.obfuscation.strings,
         obfuscate_flow: should_obfuscate_flow(config, relative_path)?,
         obfuscate_logging: config.obfuscation.obfuscate_logging.unwrap_or(false),
@@ -47,6 +49,7 @@ pub fn process_file(
             .unwrap_or_default(),
         skip_attributes: config.obfuscation.skip_attributes.unwrap_or(false),
         renamed_idents: HashMap::new(),
+        generated_idents: HashSet::new(),
         obfuscated_vars: HashSet::new(),
         used_obfuscate_str: false,
         used_obfuscate_string: false,
@@ -126,6 +129,7 @@ struct ObfuscationTransformer {
     ignore_strings: Option<Vec<String>>,
     rename_identifiers: bool,
     preserve_idents: Vec<String>,
+    rename_strategy: RenameStrategy,
     obfuscate_strings: bool,
     obfuscate_flow: bool,
     obfuscate_logging: bool,
@@ -133,6 +137,7 @@ struct ObfuscationTransformer {
     ignore_logging_messages: Vec<String>,
     skip_attributes: bool,
     renamed_idents: HashMap<String, Ident>,
+    generated_idents: HashSet<String>,
     obfuscated_vars: HashSet<String>,
     used_obfuscate_str: bool,
     used_obfuscate_string: bool,
@@ -369,7 +374,7 @@ impl VisitMut for ObfuscationTransformer {
     fn visit_item_fn_mut(&mut self, func: &mut ItemFn) {
         if self.rename_identifiers {
             let original = func.sig.ident.clone();
-            if let Some(new_ident) = self.rename_ident(&original, "_obf_") {
+            if let Some(new_ident) = self.rename_ident(&original, RenameKind::Function) {
                 func.sig.ident = new_ident;
             }
         }
@@ -388,7 +393,7 @@ impl VisitMut for ObfuscationTransformer {
             return;
         }
 
-        if let Some(new_ident) = self.rename_ident(&pat.ident, "_x") {
+        if let Some(new_ident) = self.rename_ident(&pat.ident, RenameKind::Binding) {
             pat.ident = new_ident;
         }
 
@@ -484,7 +489,7 @@ impl ObfuscationTransformer {
                 .is_some_and(|ignored| ignored.iter().any(|item| item == value))
     }
 
-    fn rename_ident(&mut self, ident: &Ident, separator: &str) -> Option<Ident> {
+    fn rename_ident(&mut self, ident: &Ident, kind: RenameKind) -> Option<Ident> {
         let original = ident.to_string();
         if self.preserve_idents.contains(&original) {
             return None;
@@ -494,10 +499,108 @@ impl ObfuscationTransformer {
             return Some(existing.clone());
         }
 
-        let suffix = generate_obf_suffix();
-        let new_ident = Ident::new(&format!("{original}{separator}{suffix}"), ident.span());
+        let new_name = self.unique_obfuscated_name(&original, kind);
+        let new_ident = Ident::new(&new_name, ident.span());
         self.renamed_idents.insert(original, new_ident.clone());
         Some(new_ident)
+    }
+
+    fn unique_obfuscated_name(&mut self, original: &str, kind: RenameKind) -> String {
+        for attempt in 0..u32::MAX {
+            let candidate = self.rename_strategy.name_for(original, kind, attempt);
+            if candidate != original
+                && !self.preserve_idents.contains(&candidate)
+                && self.generated_idents.insert(candidate.clone())
+            {
+                return candidate;
+            }
+        }
+
+        unreachable!("exhausted identifier rename attempts")
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RenameKind {
+    Function,
+    Binding,
+}
+
+#[derive(Clone, Copy)]
+enum RenameStrategy {
+    Suffix,
+    Hash,
+    Confuse,
+}
+
+impl RenameStrategy {
+    fn name_for(self, original: &str, kind: RenameKind, attempt: u32) -> String {
+        match self {
+            RenameStrategy::Suffix => suffix_name(original, kind, attempt),
+            RenameStrategy::Hash => format!("_r{}", stable_base36(original, kind, attempt)),
+            RenameStrategy::Confuse => confuse_name(original, kind, attempt),
+        }
+    }
+}
+
+fn suffix_name(original: &str, kind: RenameKind, attempt: u32) -> String {
+    let separator = match kind {
+        RenameKind::Function => "_obf_",
+        RenameKind::Binding => "_x",
+    };
+
+    if attempt == 0 {
+        format!("{original}{separator}{}", generate_obf_suffix())
+    } else {
+        format!("{original}{separator}{}_{}", generate_obf_suffix(), attempt)
+    }
+}
+
+fn confuse_name(original: &str, kind: RenameKind, attempt: u32) -> String {
+    let digest = stable_base36(original, kind, attempt);
+    let mut chars = digest.chars();
+    let first = match chars.next().unwrap_or('a') {
+        ch if ch.is_ascii_alphabetic() => ch,
+        ch => (b'a' + (ch as u8 % 26)) as char,
+    };
+    format!("_{first}{}", chars.collect::<String>())
+}
+
+fn stable_base36(original: &str, kind: RenameKind, attempt: u32) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    original.hash(&mut hasher);
+    attempt.hash(&mut hasher);
+    match kind {
+        RenameKind::Function => "fn".hash(&mut hasher),
+        RenameKind::Binding => "binding".hash(&mut hasher),
+    }
+    to_base36(hasher.finish())
+}
+
+fn to_base36(mut value: u64) -> String {
+    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if value == 0 {
+        return "0".to_string();
+    }
+
+    let mut out = Vec::new();
+    while value > 0 {
+        out.push(DIGITS[(value % 36) as usize] as char);
+        value /= 36;
+    }
+    out.iter().rev().collect()
+}
+
+fn rename_strategy(config: &ObfuscateConfig) -> RenameStrategy {
+    match config
+        .identifiers
+        .as_ref()
+        .and_then(|identifiers| identifiers.strategy.as_deref())
+    {
+        Some("hash") => RenameStrategy::Hash,
+        Some("confuse") => RenameStrategy::Confuse,
+        Some("suffix") | None => RenameStrategy::Suffix,
+        Some(_) => RenameStrategy::Suffix,
     }
 }
 
@@ -810,7 +913,30 @@ mod tests {
             },
             identifiers: Some(crate::config::IdentifiersSection {
                 rename,
+                strategy: None,
                 preserve: None,
+            }),
+            include: None,
+            logging_macros: None,
+        }
+    }
+
+    fn cfg_with_rename_strategy(strategy: &str, preserve: Option<Vec<String>>) -> ObfuscateConfig {
+        ObfuscateConfig {
+            obfuscation: ObfuscationSection {
+                strings: false,
+                min_string_length: None,
+                ignore_strings: None,
+                control_flow: false,
+                control_flow_files: None,
+                obfuscate_logging: None,
+                skip_files: None,
+                skip_attributes: None,
+            },
+            identifiers: Some(crate::config::IdentifiersSection {
+                rename: true,
+                strategy: Some(strategy.to_string()),
+                preserve,
             }),
             include: None,
             logging_macros: None,
@@ -831,6 +957,7 @@ mod tests {
             ignore_strings: ignore_strings,
             rename_identifiers: rename_identifiers,
             preserve_idents: vec![],
+            rename_strategy: RenameStrategy::Suffix,
             obfuscate_strings: obfuscate_strings,
             obfuscate_flow: obfuscate_flow,
             obfuscate_logging: false,
@@ -838,6 +965,7 @@ mod tests {
             ignore_logging_messages: vec![],
             skip_attributes: skip_attributes,
             renamed_idents: HashMap::new(),
+            generated_idents: HashSet::new(),
             obfuscated_vars: HashSet::new(),
             used_obfuscate_str: false,
             used_obfuscate_string: false,
@@ -1356,6 +1484,87 @@ pub fn call() -> u32 {
             !out.contains("\n    total\n"),
             "old local reference survived:\n{out}"
         );
+    }
+
+    #[test]
+    fn rename_suffix_strategy_keeps_backward_compatible_shape() {
+        let src = r#"pub fn add(value: u32) -> u32 {
+    value
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_rename_strategy("suffix", None),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("pub fn add_obf_"), "{out}");
+        assert!(out.contains("value_x"), "{out}");
+    }
+
+    #[test]
+    fn rename_hash_strategy_hides_original_identifier_names() {
+        let src = r#"pub fn sensitive_name(secret_value: u32) -> u32 {
+    let intermediate_value = secret_value + 1;
+    intermediate_value
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_rename_strategy("hash", None),
+            false,
+        )
+        .unwrap();
+
+        assert!(!out.contains("sensitive_name"), "{out}");
+        assert!(!out.contains("secret_value"), "{out}");
+        assert!(!out.contains("intermediate_value"), "{out}");
+        assert!(out.contains("pub fn _r"), "{out}");
+    }
+
+    #[test]
+    fn rename_confuse_strategy_generates_valid_random_looking_names() {
+        let src = r#"pub fn sensitive_name(secret_value: u32) -> u32 {
+    secret_value
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_rename_strategy("confuse", None),
+            false,
+        )
+        .unwrap();
+
+        assert!(!out.contains("sensitive_name"), "{out}");
+        assert!(!out.contains("secret_value"), "{out}");
+        assert!(out.contains("pub fn _"), "{out}");
+    }
+
+    #[test]
+    fn rename_strategy_respects_preserve_list() {
+        let src = r#"pub fn main() {
+    let secret_value = 1;
+    secret_value;
+}
+"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_rename_strategy("hash", Some(vec!["main".to_string()])),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("pub fn main()"), "{out}");
+        assert!(!out.contains("secret_value"), "{out}");
     }
 
     #[test]

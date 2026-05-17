@@ -23,6 +23,7 @@ pub struct ObfuscationSection {
 #[derive(Debug, Deserialize)]
 pub struct IdentifiersSection {
     pub rename: bool,
+    pub strategy: Option<String>,
     pub preserve: Option<Vec<String>>,
 }
 

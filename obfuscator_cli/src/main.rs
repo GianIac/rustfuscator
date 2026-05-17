@@ -147,6 +147,7 @@ skip_attributes = true
 
 [identifiers]
 rename = false
+strategy = "suffix"
 preserve = ["main"]
 
 [include]
