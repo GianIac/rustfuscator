@@ -1,4 +1,4 @@
-Hi! Thank you for considering contributing to **Rustfuscator** — an open-source toolkit for source-level code obfuscation in Rust.
+Hi! Thank you for considering contributing to **Rustfuscator** an open-source toolkit for source-level code obfuscation in Rust.
 
 Whether you're fixing a bug, improving documentation, writing tests, opening issues, or just dropping a comment: **your contribution is appreciated**.
 

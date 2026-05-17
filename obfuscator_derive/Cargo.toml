@@ -1,6 +1,6 @@
 [package]
 name = "obfuscator_derive"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "Derive macro for struct-level encryption used in rustfuscator"
 license = "MIT"
@@ -8,6 +8,10 @@ repository = "https://github.com/GianIac/rustfuscator"
 
 [lib]
 proc-macro = true
+
+[features]
+default = []
+secure_zeroize = []
 
 [dependencies]
 syn = "2.0"

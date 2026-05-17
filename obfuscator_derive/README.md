@@ -18,6 +18,6 @@ It defines attribute macros like `#[obfuscate]` that mark functions or modules f
 
 ### Usage notes
 
-- `#[derive(Obfuscate)]` supports fields of type `String` and `u32`.
+- `#[derive(Obfuscate)]` supports fields of type `String`, `bool`, and Rust integer primitives.
 - Invalid field types produce a compile-time error pointing to the offending field.
 - The derive internally uses `rust_code_obfuscator::crypto::default_key()`; no user key plumbing required.
