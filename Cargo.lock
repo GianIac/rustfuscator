@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "obfuscator_cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -802,7 +802,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "rust_code_obfuscator_core 0.3.0",
+ "rust_code_obfuscator_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "similar",
@@ -1086,9 +1086,7 @@ dependencies = [
 
 [[package]]
 name = "rust_code_obfuscator_core"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bef5e9f145059bb03cef58702e014fb4db9a53f9fef969352f5764af47e4c8d"
+version = "0.3.1"
 dependencies = [
  "aead",
  "aes",
@@ -1101,6 +1099,8 @@ dependencies = [
 [[package]]
 name = "rust_code_obfuscator_core"
 version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ca14130cfa451bb2baa6a97c93672403ff736ab4223a87c7860f1bc81f68ce"
 dependencies = [
  "aead",
  "aes",
