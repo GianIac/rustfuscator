@@ -159,3 +159,114 @@ fn format_rust_files(project_root: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    fn try_format_rust_files(){
+        let src: &str = r#"pub const TEST:    &str =     "test";"#;
+        
+        let file_name = "simple_file.rs";
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(file_name);
+        std::fs::write(&path, src).unwrap();
+
+        format_rust_files(dir.path()).unwrap();
+
+        let formated_content = fs::read_to_string(path).unwrap();
+        assert_eq!(formated_content.trim(), r#"pub const TEST: &str = "test";"#);
+    }
+
+    #[test]
+    fn dry_run() {
+        let src: &str = r#"pub const TEST: &str = "test";"#;
+        
+        let file_name = "simple_file.rs";
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(file_name);
+        std::fs::write(&path, src).unwrap();
+
+        let config = ObfuscateConfig{ 
+            obfuscation: crate::config::ObfuscationSection { 
+                strings: true, 
+                min_string_length: None, 
+                ignore_strings: None, 
+                control_flow: true,
+                skip_files: None, 
+                skip_attributes: None
+            }, 
+            identifiers: None, 
+            include: None };
+
+        let result = transform_rust_files(&path, &config, false, true, None, false);
+        match  result {
+            Ok(_) => {},
+            Err(_) => panic!("transform_rust_files fails with error"),
+        } 
+        let formated_content = fs::read_to_string(path).unwrap();
+        assert_eq!(formated_content.trim(), src);
+    }
+
+    #[test]
+    fn try_transform_rust_files_with_no_format() {
+        let src_1: &str = r#"
+fn main() {let test: &str = "test";}
+"#;
+        let src_2: &str = r#"
+fn main() {let test: &str = "test";loop {}}
+"#;
+        let src_3: &str = r#"
+fn main() {
+while true {}
+for i in [] {}
+let x = Some(1);
+match x {
+    None => None,
+    Some(i) => {},
+    _ => {},}}
+"#;
+
+        let file_name_1 = "simple_file_1.rs";
+        let file_name_2 = "simple_file_2.rs";
+        let file_name_3 = "simple_file_3.rs";
+        let dir = tempfile::tempdir().unwrap();
+        let path_1 = dir.path().join(file_name_1);
+        let path_2 = dir.path().join(file_name_2);
+        let path_3 = dir.path().join(file_name_3);
+        std::fs::write(&path_1, src_1).unwrap();
+        std::fs::write(&path_2, src_2).unwrap();
+        std::fs::write(&path_3, src_3).unwrap();
+
+        let config = ObfuscateConfig{ 
+            obfuscation: crate::config::ObfuscationSection { 
+                strings: true, 
+                min_string_length: None, 
+                ignore_strings: None, 
+                control_flow: true,
+                skip_files: None, 
+                skip_attributes: None
+            }, 
+            identifiers: None, 
+            include: None };
+
+        let result = transform_rust_files(&dir.path(), &config, false, false, None, false);
+        match  result {
+            Ok(_) => {},
+            Err(_) => panic!("transform_rust_files fails with error"),
+        } 
+        let formated_content = fs::read_to_string(path_1).unwrap();
+        for line in formated_content.lines() {
+            println!("{}", line);
+        }
+        let formated_content = fs::read_to_string(path_2).unwrap();
+        for line in formated_content.lines() {
+            println!("{}", line);
+        }
+        let formated_content = fs::read_to_string(path_3).unwrap();
+        for line in formated_content.lines() {
+            println!("{}", line);
+        }
+    }
+}
