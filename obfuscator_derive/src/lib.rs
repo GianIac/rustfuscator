@@ -2,6 +2,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Type};
 
+const SUPPORTED_SCALARS: &[&str] = &["bool", "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"];
+
 #[proc_macro_derive(Obfuscate)]
 pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -37,12 +39,11 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
 
     // Type validation
     for f in fields {
-        let ty = &f.ty;
-        if !(matches!(ty, Type::Path(p) if p.path.is_ident("String") || p.path.is_ident("u32"))) {
+        if !is_supported_field_type(&f.ty) {
             return syn::Error::new_spanned(
                 &f.ty,
                 format!(
-                    "Obfuscate derive only supports String and u32 (field `{}` has unsupported type)",
+                    "Obfuscate derive only supports String, bool, and integer scalar fields (field `{}` has unsupported type)",
                     f.ident.as_ref().unwrap()
                 ),
             )
@@ -62,7 +63,10 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
         let name = &f.ident;
         let ty = match &f.ty {
             Type::Path(p) if p.path.is_ident("String") => quote! { &str },
-            Type::Path(p) if p.path.is_ident("u32") => quote! { u32 },
+            Type::Path(_) => {
+                let ty = &f.ty;
+                quote! { #ty }
+            }
             _ => quote! { &str }, // never reached due to validation above
         };
         quote! { #name: #ty }
@@ -78,8 +82,8 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
                     &rust_code_obfuscator::crypto::default_key()
                 ).expect("encryption failed")
             },
-            Type::Path(p) if p.path.is_ident("u32") => quote! {
-                #name: rust_code_obfuscator::crypto::encrypt_u32(
+            Type::Path(_) => quote! {
+                #name: rust_code_obfuscator::crypto::encrypt_display(
                     #name,
                     &rust_code_obfuscator::crypto::default_key()
                 ).expect("encryption failed")
@@ -103,12 +107,15 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
                     &rust_code_obfuscator::crypto::default_key()
                 ).expect("decryption failed")
             },
-            Type::Path(p) if p.path.is_ident("u32") => quote! {
-                #name: rust_code_obfuscator::crypto::decrypt_u32(
-                    &self.#name.0, &self.#name.1,
-                    &rust_code_obfuscator::crypto::default_key()
-                ).expect("decryption failed")
-            },
+            Type::Path(_) => {
+                let ty = &f.ty;
+                quote! {
+                    #name: rust_code_obfuscator::crypto::decrypt_parse::<#ty>(
+                        &self.#name.0, &self.#name.1,
+                        &rust_code_obfuscator::crypto::default_key()
+                    ).expect("decryption failed")
+                }
+            }
             _ => quote! {
                 #name: rust_code_obfuscator::crypto::decrypt_string(
                     &self.#name.0, &self.#name.1,
@@ -162,4 +169,14 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn is_supported_field_type(ty: &Type) -> bool {
+    match ty {
+        Type::Path(path) if path.path.is_ident("String") => true,
+        Type::Path(path) => SUPPORTED_SCALARS
+            .iter()
+            .any(|supported| path.path.is_ident(supported)),
+        _ => false,
+    }
 }

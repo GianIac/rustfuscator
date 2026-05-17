@@ -2,6 +2,7 @@ use aes_gcm::{
     aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
+use core::str::FromStr;
 use zeroize::Zeroize;
 
 use crate::errors::ObfuscatorError;
@@ -121,6 +122,17 @@ pub fn decrypt_string(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<String
 }
 
 pub fn encrypt_u32(input: u32, key: &Key) -> Result<(Vec<u8>, [u8; 12]), ObfuscatorError> {
+    encrypt_display(input, key)
+}
+
+pub fn decrypt_u32(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<u32, ObfuscatorError> {
+    decrypt_parse(data, nonce, key)
+}
+
+pub fn encrypt_display<T: core::fmt::Display>(
+    input: T,
+    key: &Key,
+) -> Result<(Vec<u8>, [u8; 12]), ObfuscatorError> {
     let clear = input.to_string();
     let encrypted = encrypt_string(&clear, key);
     #[cfg(feature = "secure_zeroize")]
@@ -131,7 +143,11 @@ pub fn encrypt_u32(input: u32, key: &Key) -> Result<(Vec<u8>, [u8; 12]), Obfusca
     encrypted
 }
 
-pub fn decrypt_u32(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<u32, ObfuscatorError> {
+pub fn decrypt_parse<T: FromStr>(
+    data: &[u8],
+    nonce: &[u8; 12],
+    key: &Key,
+) -> Result<T, ObfuscatorError> {
     let s = decrypt_string(data, nonce, key)?;
     let parsed = s.parse().map_err(|_| ObfuscatorError::EncryptionError);
     #[cfg(feature = "secure_zeroize")]
@@ -165,6 +181,23 @@ mod tests {
         let (ct, nonce) = encrypt_u32(1234, &k).unwrap();
         let n = decrypt_u32(&ct, &nonce, &k).unwrap();
         assert_eq!(n, 1234);
+    }
+
+    #[test]
+    fn encrypt_and_decrypt_supported_scalars() {
+        let k = create_new_key();
+
+        let (ct, nonce) = encrypt_display(true, &k).unwrap();
+        assert!(decrypt_parse::<bool>(&ct, &nonce, &k).unwrap());
+
+        let (ct, nonce) = encrypt_display(-42i32, &k).unwrap();
+        assert_eq!(decrypt_parse::<i32>(&ct, &nonce, &k).unwrap(), -42);
+
+        let (ct, nonce) = encrypt_display(9_000_000_000u64, &k).unwrap();
+        assert_eq!(
+            decrypt_parse::<u64>(&ct, &nonce, &k).unwrap(),
+            9_000_000_000
+        );
     }
 
     #[test]
