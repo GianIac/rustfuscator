@@ -201,6 +201,40 @@ mod tests {
     }
 
     #[test]
+    fn encrypt_and_decrypt_integer_boundaries() {
+        let k = create_new_key();
+
+        macro_rules! assert_round_trip {
+            ($ty:ty, $value:expr) => {{
+                let expected: $ty = $value;
+                let (ct, nonce) = encrypt_display(expected, &k).unwrap();
+                assert_eq!(decrypt_parse::<$ty>(&ct, &nonce, &k).unwrap(), expected);
+            }};
+        }
+
+        assert_round_trip!(u8, u8::MAX);
+        assert_round_trip!(u16, u16::MAX);
+        assert_round_trip!(u32, u32::MAX);
+        assert_round_trip!(u64, u64::MAX);
+        assert_round_trip!(u128, u128::MAX);
+        assert_round_trip!(usize, usize::MAX);
+        assert_round_trip!(i8, i8::MIN);
+        assert_round_trip!(i16, i16::MIN);
+        assert_round_trip!(i32, i32::MIN);
+        assert_round_trip!(i64, i64::MIN);
+        assert_round_trip!(i128, i128::MIN);
+        assert_round_trip!(isize, isize::MIN);
+    }
+
+    #[test]
+    fn decrypt_parse_rejects_plaintext_that_does_not_match_target_type() {
+        let k = create_new_key();
+        let (ct, nonce) = encrypt_string("not-a-bool", &k).unwrap();
+
+        assert!(decrypt_parse::<bool>(&ct, &nonce, &k).is_err());
+    }
+
+    #[test]
     fn encrypt_and_decrypt_with_default_key() {
         let k = default_key();
         let (ct, nonce) = encrypt_string("hello", &k).unwrap();

@@ -1,8 +1,10 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Type};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, Ident, Path, Type};
 
-const SUPPORTED_SCALARS: &[&str] = &["bool", "u8", "u16", "u32", "u64", "i8", "i16", "i32", "i64"];
+const SUPPORTED_SCALARS: &[&str] = &[
+    "bool", "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
+];
 
 #[proc_macro_derive(Obfuscate)]
 pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
@@ -62,7 +64,7 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     let clear_args = fields.iter().map(|f| {
         let name = &f.ident;
         let ty = match &f.ty {
-            Type::Path(p) if p.path.is_ident("String") => quote! { &str },
+            Type::Path(p) if is_string_path(&p.path) => quote! { &str },
             Type::Path(_) => {
                 let ty = &f.ty;
                 quote! { #ty }
@@ -76,7 +78,7 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     let clear_encrypt = fields.iter().map(|f| {
         let name = &f.ident;
         match &f.ty {
-            Type::Path(p) if p.path.is_ident("String") => quote! {
+            Type::Path(p) if is_string_path(&p.path) => quote! {
                 #name: rust_code_obfuscator::crypto::encrypt_string(
                     #name,
                     &rust_code_obfuscator::crypto::default_key()
@@ -101,7 +103,7 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
     let decrypt_fields = fields.iter().map(|f| {
         let name = &f.ident;
         match &f.ty {
-            Type::Path(p) if p.path.is_ident("String") => quote! {
+            Type::Path(p) if is_string_path(&p.path) => quote! {
                 #name: rust_code_obfuscator::crypto::decrypt_string(
                     &self.#name.0, &self.#name.1,
                     &rust_code_obfuscator::crypto::default_key()
@@ -173,10 +175,73 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
 
 fn is_supported_field_type(ty: &Type) -> bool {
     match ty {
-        Type::Path(path) if path.path.is_ident("String") => true,
+        Type::Path(path) if is_string_path(&path.path) => true,
         Type::Path(path) => SUPPORTED_SCALARS
             .iter()
             .any(|supported| path.path.is_ident(supported)),
         _ => false,
+    }
+}
+
+fn is_string_path(path: &Path) -> bool {
+    if path.is_ident("String") {
+        return true;
+    }
+
+    let mut segments = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string());
+    matches!(
+        (segments.next(), segments.next(), segments.next(), segments.next()),
+        (Some(root), Some(module), Some(name), None)
+            if (root == "std" || root == "alloc") && module == "string" && name == "String"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn supports_string_bool_and_all_integer_primitives() {
+        let supported: &[Type] = &[
+            parse_quote!(String),
+            parse_quote!(std::string::String),
+            parse_quote!(alloc::string::String),
+            parse_quote!(bool),
+            parse_quote!(u8),
+            parse_quote!(u16),
+            parse_quote!(u32),
+            parse_quote!(u64),
+            parse_quote!(u128),
+            parse_quote!(usize),
+            parse_quote!(i8),
+            parse_quote!(i16),
+            parse_quote!(i32),
+            parse_quote!(i64),
+            parse_quote!(i128),
+            parse_quote!(isize),
+        ];
+
+        for ty in supported {
+            assert!(is_supported_field_type(ty));
+        }
+    }
+
+    #[test]
+    fn rejects_containers_floats_and_type_alias_like_paths() {
+        let unsupported: &[Type] = &[
+            parse_quote!(Vec<String>),
+            parse_quote!(Option<u32>),
+            parse_quote!(f32),
+            parse_quote!(f64),
+            parse_quote!(crate::MyType),
+        ];
+
+        for ty in unsupported {
+            assert!(!is_supported_field_type(ty));
+        }
     }
 }
