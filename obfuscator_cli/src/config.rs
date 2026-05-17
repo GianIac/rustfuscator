@@ -15,6 +15,7 @@ pub struct ObfuscationSection {
     pub ignore_strings: Option<Vec<String>>,
     pub control_flow: bool,
     pub control_flow_files: Option<Vec<String>>,
+    pub dummy_branches: Option<bool>,
     pub obfuscate_logging: Option<bool>,
     pub skip_files: Option<Vec<String>>,
     pub skip_attributes: Option<bool>,

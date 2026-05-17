@@ -141,6 +141,7 @@ min_string_length = 4
 ignore_strings = ["DEBUG", "LOG"]
 control_flow = true
 control_flow_files = ["**/*.rs"]
+dummy_branches = false
 obfuscate_logging = true
 skip_files = ["src/main.rs"]
 skip_attributes = true

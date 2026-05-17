@@ -24,6 +24,7 @@ pub fn process_file(
 
     let mut syntax_tree = parse_file(&source)?;
 
+    let obfuscate_flow = should_obfuscate_flow(config, relative_path)?;
     let mut transformer = ObfuscationTransformer {
         min_string_length: config.obfuscation.min_string_length,
         ignore_strings: config.obfuscation.ignore_strings.clone(),
@@ -39,7 +40,9 @@ pub fn process_file(
             .unwrap_or_default(),
         rename_strategy: rename_strategy(config),
         obfuscate_strings: config.obfuscation.strings,
-        obfuscate_flow: should_obfuscate_flow(config, relative_path)?,
+        obfuscate_flow,
+        obfuscate_dummy_branches: obfuscate_flow
+            && config.obfuscation.dummy_branches.unwrap_or(false),
         obfuscate_logging: config.obfuscation.obfuscate_logging.unwrap_or(false),
         logging_macros: logging_macro_set(config),
         ignore_logging_messages: config
@@ -54,12 +57,14 @@ pub fn process_file(
         used_obfuscate_str: false,
         used_obfuscate_string: false,
         used_obfuscate_flow: false,
+        used_obfuscate_dummy_branch: false,
     };
     transformer.visit_file_mut(&mut syntax_tree);
 
     let mut has_use_str = false;
     let mut has_use_string = false;
     let mut has_use_flow = false;
+    let mut has_use_dummy_branch = false;
 
     for item in &syntax_tree.items {
         if let syn::Item::Use(u) = item {
@@ -71,6 +76,9 @@ pub fn process_file(
             }
             if use_tree_contains_ident(&u.tree, "obfuscate_flow") {
                 has_use_flow = true;
+            }
+            if use_tree_contains_ident(&u.tree, "obfuscate_dummy_branch") {
+                has_use_dummy_branch = true;
             }
         }
     }
@@ -92,6 +100,12 @@ pub fn process_file(
     if transformer.used_obfuscate_flow && !has_use_flow {
         new_use_items.push(syn::parse_quote! {
             use rust_code_obfuscator::obfuscate_flow;
+        });
+    }
+
+    if transformer.used_obfuscate_dummy_branch && !has_use_dummy_branch {
+        new_use_items.push(syn::parse_quote! {
+            use rust_code_obfuscator::obfuscate_dummy_branch;
         });
     }
 
@@ -132,6 +146,7 @@ struct ObfuscationTransformer {
     rename_strategy: RenameStrategy,
     obfuscate_strings: bool,
     obfuscate_flow: bool,
+    obfuscate_dummy_branches: bool,
     obfuscate_logging: bool,
     logging_macros: HashSet<String>,
     ignore_logging_messages: Vec<String>,
@@ -142,6 +157,7 @@ struct ObfuscationTransformer {
     used_obfuscate_str: bool,
     used_obfuscate_string: bool,
     used_obfuscate_flow: bool,
+    used_obfuscate_dummy_branch: bool,
 }
 
 impl VisitMut for ObfuscationTransformer {
@@ -312,12 +328,11 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_if_mut(&mut self, node: &mut ExprIf) {
         if self.obfuscate_flow {
-            self.used_obfuscate_flow = true;
-            let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
-            node.then_branch.stmts.insert(0, inject.clone());
+            let inject = self.flow_obfuscation_stmts();
+            prepend_stmts(&mut node.then_branch.stmts, inject.clone());
             if let Some((_, else_branch)) = &mut node.else_branch {
                 if let Expr::Block(block) = else_branch.as_mut() {
-                    block.block.stmts.insert(0, inject.clone());
+                    prepend_stmts(&mut block.block.stmts, inject);
                 }
             }
         }
@@ -326,10 +341,10 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_match_mut(&mut self, node: &mut ExprMatch) {
         if self.obfuscate_flow {
-            self.used_obfuscate_flow = true;
             for arm in &mut node.arms {
+                let inject = self.flow_obfuscation_stmts();
                 let original = &arm.body;
-                *arm.body = syn::parse_quote!({ obfuscate_flow!(); #original });
+                *arm.body = syn::parse_quote!({ #(#inject)* #original });
             }
         }
 
@@ -346,27 +361,24 @@ impl VisitMut for ObfuscationTransformer {
 
     fn visit_expr_loop_mut(&mut self, node: &mut ExprLoop) {
         if self.obfuscate_flow {
-            self.used_obfuscate_flow = true;
-            let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
-            node.body.stmts.insert(0, inject);
+            let inject = self.flow_obfuscation_stmts();
+            prepend_stmts(&mut node.body.stmts, inject);
         }
         syn::visit_mut::visit_expr_loop_mut(self, node);
     }
 
     fn visit_expr_while_mut(&mut self, node: &mut ExprWhile) {
         if self.obfuscate_flow {
-            self.used_obfuscate_flow = true;
-            let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
-            node.body.stmts.insert(0, inject);
+            let inject = self.flow_obfuscation_stmts();
+            prepend_stmts(&mut node.body.stmts, inject);
         }
         syn::visit_mut::visit_expr_while_mut(self, node);
     }
 
     fn visit_expr_for_loop_mut(&mut self, node: &mut ExprForLoop) {
         if self.obfuscate_flow {
-            self.used_obfuscate_flow = true;
-            let inject: Stmt = syn::parse_quote! { obfuscate_flow!(); };
-            node.body.stmts.insert(0, inject);
+            let inject = self.flow_obfuscation_stmts();
+            prepend_stmts(&mut node.body.stmts, inject);
         }
         syn::visit_mut::visit_expr_for_loop_mut(self, node);
     }
@@ -436,6 +448,18 @@ impl VisitMut for ObfuscationTransformer {
 }
 
 impl ObfuscationTransformer {
+    fn flow_obfuscation_stmts(&mut self) -> Vec<Stmt> {
+        self.used_obfuscate_flow = true;
+        let mut stmts = vec![syn::parse_quote! { obfuscate_flow!(); }];
+
+        if self.obfuscate_dummy_branches {
+            self.used_obfuscate_dummy_branch = true;
+            stmts.push(syn::parse_quote! { obfuscate_dummy_branch!(); });
+        }
+
+        stmts
+    }
+
     fn obfuscate_logging_macro(&self, node: &mut syn::Macro) -> bool {
         let parser = Punctuated::<Expr, Token![,]>::parse_terminated;
         let Ok(args) = parser.parse2(node.tokens.clone()) else {
@@ -784,6 +808,12 @@ fn should_obfuscate_flow(config: &ObfuscateConfig, relative_path: &Path) -> Resu
     Ok(builder.build()?.is_match(relative_path))
 }
 
+fn prepend_stmts(target: &mut Vec<Stmt>, stmts: Vec<Stmt>) {
+    for stmt in stmts.into_iter().rev() {
+        target.insert(0, stmt);
+    }
+}
+
 fn collect_idents_from_pat(pat: &Pat) -> Option<Ident> {
     match pat {
         Pat::Ident(p) => Some(p.ident.clone()),
@@ -847,6 +877,7 @@ mod tests {
                 ignore_strings: ignore_strings,
                 control_flow: flow,
                 control_flow_files: None,
+                dummy_branches: None,
                 obfuscate_logging: None,
                 skip_files: skip_files,
                 skip_attributes: skip_attributes,
@@ -868,6 +899,7 @@ mod tests {
                 ignore_strings: None,
                 control_flow: false,
                 control_flow_files: None,
+                dummy_branches: None,
                 obfuscate_logging: Some(true),
                 skip_files: None,
                 skip_attributes: None,
@@ -889,6 +921,26 @@ mod tests {
                 ignore_strings: None,
                 control_flow: true,
                 control_flow_files: patterns,
+                dummy_branches: None,
+                obfuscate_logging: None,
+                skip_files: None,
+                skip_attributes: None,
+            },
+            identifiers: None,
+            include: None,
+            logging_macros: None,
+        }
+    }
+
+    fn cfg_with_dummy_branches(flow: bool, dummy_branches: bool) -> ObfuscateConfig {
+        ObfuscateConfig {
+            obfuscation: ObfuscationSection {
+                strings: false,
+                min_string_length: None,
+                ignore_strings: None,
+                control_flow: flow,
+                control_flow_files: None,
+                dummy_branches: Some(dummy_branches),
                 obfuscate_logging: None,
                 skip_files: None,
                 skip_attributes: None,
@@ -907,6 +959,7 @@ mod tests {
                 ignore_strings: None,
                 control_flow: false,
                 control_flow_files: None,
+                dummy_branches: None,
                 obfuscate_logging: None,
                 skip_files: None,
                 skip_attributes: None,
@@ -929,6 +982,7 @@ mod tests {
                 ignore_strings: None,
                 control_flow: false,
                 control_flow_files: None,
+                dummy_branches: None,
                 obfuscate_logging: None,
                 skip_files: None,
                 skip_attributes: None,
@@ -960,6 +1014,7 @@ mod tests {
             rename_strategy: RenameStrategy::Suffix,
             obfuscate_strings: obfuscate_strings,
             obfuscate_flow: obfuscate_flow,
+            obfuscate_dummy_branches: false,
             obfuscate_logging: false,
             logging_macros: default_logging_macros().into_iter().collect(),
             ignore_logging_messages: vec![],
@@ -970,6 +1025,7 @@ mod tests {
             used_obfuscate_str: false,
             used_obfuscate_string: false,
             used_obfuscate_flow: false,
+            used_obfuscate_dummy_branch: false,
         }
     }
 
@@ -1252,6 +1308,46 @@ pub const TEST: &str = "test";"#;
         .unwrap();
 
         assert!(out.contains("obfuscate_flow!();"));
+    }
+
+    #[test]
+    fn dummy_branches_are_opt_in_on_top_of_control_flow() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_dummy_branches(true, true),
+            false,
+        )
+        .unwrap();
+
+        assert!(out.contains("use rust_code_obfuscator::obfuscate_flow;"));
+        assert!(out.contains("use rust_code_obfuscator::obfuscate_dummy_branch;"));
+        assert!(out.contains("obfuscate_flow!();"));
+        assert!(out.contains("obfuscate_dummy_branch!();"));
+    }
+
+    #[test]
+    fn dummy_branches_do_not_run_when_control_flow_is_disabled() {
+        let src = r#"pub fn if_me() {
+    if true {}
+}"#;
+
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _changed, _before) = super::process_file(
+            &path,
+            relative_path.as_path(),
+            &cfg_with_dummy_branches(false, true),
+            false,
+        )
+        .unwrap();
+
+        assert!(!out.contains("obfuscate_flow!();"));
+        assert!(!out.contains("obfuscate_dummy_branch!();"));
     }
 
     #[test]
