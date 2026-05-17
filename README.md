@@ -34,7 +34,7 @@ The macro layer then performs the runtime behavior needed by the transformed sou
 ## Installation
 
 ```bash
-cargo install rustfuscator
+cargo install rust_code_obfuscator
 ```
 
 Or from a local checkout:
