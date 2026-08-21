@@ -248,4 +248,41 @@ mod tests {
 
         assert_eq!(filtered.selected[0].relative_path, Path::new("lib.rs"));
     }
+
+    #[test]
+    fn skip_reasons_have_stable_user_facing_messages() {
+        assert_eq!(
+            SkipReason::MatchedSkipFile.to_string(),
+            "matched skip_files"
+        );
+        assert_eq!(
+            SkipReason::NotIncluded.to_string(),
+            "not in include patterns"
+        );
+        assert_eq!(SkipReason::Excluded.to_string(), "excluded by pattern");
+    }
+
+    #[test]
+    fn empty_include_list_selects_nothing() {
+        let filtered = filter_rust_files(
+            path_list(&["/workspace/src/lib.rs"]),
+            Path::new("/workspace"),
+            &cfg(None, Some(vec![]), None),
+        )
+        .unwrap();
+
+        assert!(filtered.selected.is_empty());
+        assert_eq!(filtered.skipped[0].reason, SkipReason::NotIncluded);
+    }
+
+    #[test]
+    fn invalid_glob_is_reported() {
+        let result = filter_rust_files(
+            path_list(&["/workspace/src/lib.rs"]),
+            Path::new("/workspace"),
+            &cfg(None, Some(vec!["[".to_string()]), None),
+        );
+
+        assert!(result.is_err());
+    }
 }

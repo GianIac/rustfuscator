@@ -1,5 +1,5 @@
 use aes_gcm::{
-    aead::{rand_core::RngCore, Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use core::str::FromStr;
@@ -91,10 +91,10 @@ pub fn encrypt_string(input: &str, key: &Key) -> Result<(Vec<u8>, [u8; 12]), Obf
     let cipher =
         Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_| ObfuscatorError::EncryptionError)?;
     let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    rand::fill(&mut nonce_bytes);
+    let nonce = Nonce::from(nonce_bytes);
     let ciphertext = cipher
-        .encrypt(nonce, input.as_bytes())
+        .encrypt(&nonce, input.as_bytes())
         .map_err(|_| ObfuscatorError::EncryptionError)?;
     Ok((ciphertext, nonce_bytes))
 }
@@ -102,9 +102,9 @@ pub fn encrypt_string(input: &str, key: &Key) -> Result<(Vec<u8>, [u8; 12]), Obf
 pub fn decrypt_string(data: &[u8], nonce: &[u8; 12], key: &Key) -> Result<String, ObfuscatorError> {
     let cipher =
         Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_| ObfuscatorError::EncryptionError)?;
-    let nonce = Nonce::from_slice(nonce);
+    let nonce = Nonce::from(*nonce);
     let plaintext = cipher
-        .decrypt(nonce, data)
+        .decrypt(&nonce, data)
         .map_err(|_| ObfuscatorError::EncryptionError)?;
     match String::from_utf8(plaintext) {
         Ok(value) => Ok(value),

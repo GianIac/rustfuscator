@@ -1,6 +1,6 @@
 [package]
 name = "rust_code_obfuscator_core"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 build = "src/build.rs"
 description = "Core encryption and obfuscation logic for rustfuscator"
@@ -13,12 +13,10 @@ secure_zeroize = []
 verify_literals = []
 
 [build-dependencies]
-rand = "0.9.1"
+rand = "0.10.2"
 
 [dependencies]
-cryptify = "3.1.1"
-rand = "0.9.1"
-aes-gcm = "0.10"
-aes = "0.8"
-aead = "0.5"
-zeroize = "1.7"
+cryptify = "3.2.1"
+rand = "0.10.2"
+aes-gcm = "0.11.0"
+zeroize = "1.9.0"

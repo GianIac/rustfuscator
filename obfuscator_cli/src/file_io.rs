@@ -170,11 +170,9 @@ mod tests {
             match gather_rust_files(f_path) {
                 Ok(_) => panic!("It should panic"),
                 Err(e) => {
-                    if e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
+                    if !e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
                         matches!(err, ObfuscatorError::InvalidFileExtension { path } if path == f_path)
                     }) {
-                        ()
-                    } else {
                         panic!("Unexpected error: {:?}", e);
                     }
                 }
@@ -194,12 +192,10 @@ mod tests {
             match write_transformed(&dest, content, false) {
                 Ok(_) => panic!("It should panic"),
                 Err(e) => {
-                    if e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
+                    if !e.downcast_ref::<ObfuscatorError>().is_some_and(|err| {
                         matches!(err, ObfuscatorError::InvalidFileExtension { path } if path == &dest)
                     })
                     {
-                        ();
-                    } else {
                         panic!("Unexpected error: {:?}", e);
                     }
                 }

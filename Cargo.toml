@@ -1,6 +1,6 @@
 [package]
 name = "rust_code_obfuscator"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 license = "MIT"
 description = "A Rust library to easily obfuscate strings and control-flow using cryptify lib"
@@ -28,17 +28,11 @@ secure_zeroize = [
 verify_literals = ["rust_code_obfuscator_core/verify_literals"]
 
 [dependencies]
-cryptify = "3.1.1"
-rand = "0.9.2"
-aes-gcm = "0.10"
-aes = "0.8"
-aead = "0.5"
-
-rust_code_obfuscator_core = { version = "0.3.1", path = "rust_code_obfuscator_core" }
-obfuscator_derive = { version = "0.3.1", path = "obfuscator_derive" }
+rust_code_obfuscator_core = { version = "0.3.2", path = "rust_code_obfuscator_core" }
+obfuscator_derive = { version = "0.3.2", path = "obfuscator_derive" }
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = "0.8.2"
 
 [[bench]]
 name = "macro_overhead"

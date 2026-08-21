@@ -131,12 +131,13 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
         let zeroize_fields = fields.iter().map(|f| {
             let name = &f.ident;
             quote! {
-                self.#name.zeroize();
+                self.#name.0.zeroize();
+                self.#name.1.zeroize();
             }
         });
 
         quote! {
-            impl ::core::ops::Drop for #name {
+            impl ::core::ops::Drop for #obf_name {
                 fn drop(&mut self) {
                     use rust_code_obfuscator::zeroize::Zeroize;
                     #(#zeroize_fields)*
@@ -154,6 +155,7 @@ pub fn derive_obfuscate(input: TokenStream) -> TokenStream {
         }
 
         impl #obf_name {
+            #[allow(clippy::too_many_arguments)]
             pub fn new_clear(#(#clear_args),*) -> Self {
                 Self {
                     #(#clear_encrypt),*

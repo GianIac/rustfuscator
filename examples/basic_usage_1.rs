@@ -1,4 +1,4 @@
-use rust_code_obfuscator::{obfuscate_string, obfuscate_flow};
+use rust_code_obfuscator::{obfuscate_flow, obfuscate_string};
 
 fn main() {
     obfuscate_flow!();

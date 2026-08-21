@@ -12,3 +12,12 @@ fn obfuscate_num_round_trips_from_public_crate() {
     assert_eq!(inferred, 1234);
     assert_eq!(inferred_from_context, 1234u64);
 }
+
+#[test]
+fn exported_macros_do_not_require_direct_cryptify_dependency() {
+    assert_eq!(
+        rust_code_obfuscator::obfuscate_string!("standalone consumer").as_str(),
+        "standalone consumer"
+    );
+    rust_code_obfuscator::obfuscate_flow!();
+}
