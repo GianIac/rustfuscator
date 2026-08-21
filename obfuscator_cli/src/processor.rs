@@ -236,7 +236,7 @@ impl VisitMut for ObfuscationTransformer {
                                     } else {
                                         let span = lit_str.span();
                                         let wrapped: Expr = syn::parse2(
-                                            quote_spanned! {span=> obfuscate_string!(#value) },
+                                            quote_spanned! {span=> obfuscate_string!(#value).into_string() },
                                         )
                                         .expect("failed to parse obfuscate_string! expression");
                                         *expr = wrapped;
@@ -846,6 +846,7 @@ mod tests {
     use tempfile::TempDir;
 
     /// Input type for the `create_attribute` function, specifying the kind of `syn::Meta` to create.
+    #[allow(clippy::enum_variant_names)]
     enum AttrInput {
         PathDsc(&'static str),
         ListDsc(ListDscInput),
@@ -874,13 +875,13 @@ mod tests {
             obfuscation: ObfuscationSection {
                 strings,
                 min_string_length: min_str_len,
-                ignore_strings: ignore_strings,
+                ignore_strings,
                 control_flow: flow,
                 control_flow_files: None,
                 dummy_branches: None,
                 obfuscate_logging: None,
-                skip_files: skip_files,
-                skip_attributes: skip_attributes,
+                skip_files,
+                skip_attributes,
             },
             identifiers: None,
             include: None,
@@ -1008,17 +1009,17 @@ mod tests {
     ) -> ObfuscationTransformer {
         ObfuscationTransformer {
             min_string_length: min_str_len,
-            ignore_strings: ignore_strings,
-            rename_identifiers: rename_identifiers,
+            ignore_strings,
+            rename_identifiers,
             preserve_idents: vec![],
             rename_strategy: RenameStrategy::Suffix,
-            obfuscate_strings: obfuscate_strings,
-            obfuscate_flow: obfuscate_flow,
+            obfuscate_strings,
+            obfuscate_flow,
             obfuscate_dummy_branches: false,
             obfuscate_logging: false,
             logging_macros: default_logging_macros().into_iter().collect(),
             ignore_logging_messages: vec![],
-            skip_attributes: skip_attributes,
+            skip_attributes,
             renamed_idents: HashMap::new(),
             generated_idents: HashSet::new(),
             obfuscated_vars: HashSet::new(),
@@ -1036,7 +1037,7 @@ mod tests {
         let path = dir.path().join(file_name);
         let relative_path = std::path::Path::new(file_name).to_path_buf();
         std::fs::write(&path, src).unwrap();
-        return (dir, path, relative_path);
+        (dir, path, relative_path)
     }
 
     fn get_str_lit_expression(str: &'static str) -> Expr {
@@ -1064,7 +1065,7 @@ mod tests {
                 Meta::List(syn::MetaList {
                     path: syn::Path::from(Ident::new(input.path_dsc, Span::call_site())),
                     delimiter: syn::MacroDelimiter::Paren(token::Paren(Span::call_site())),
-                    tokens: tokens,
+                    tokens,
                 })
             }
             AttrInput::NameValueDsc(input) => Meta::NameValue(syn::MetaNameValue {
@@ -1073,13 +1074,12 @@ mod tests {
                 value: get_str_lit_expression(input.value_dsc),
             }),
         };
-        let attr = Attribute {
+        Attribute {
             pound_token: Token![#](Span::call_site()),
-            style: style,
+            style,
             bracket_token: token::Bracket(Span::call_site()),
-            meta: meta,
-        };
-        return attr;
+            meta,
+        }
     }
 
     fn verify_simple_stmt_after_flow_mut(stmt: Option<&Stmt>) {
@@ -1147,7 +1147,7 @@ mod tests {
         let line_1 = lines.next().unwrap();
         let line_2 = lines.next();
         assert!(line_1 == src);
-        assert!(line_2 == None);
+        assert!(line_2.is_none());
     }
 
     #[test]
@@ -1696,17 +1696,21 @@ pub fn call() -> u32 {
             panic!("stmt must be Local");
         }
 
-        // test bar: String → obfuscate_string!
+        // test bar: String → obfuscate_string!(...).into_string()
         if let Stmt::Local(local) = stmt2 {
             if let Some(LocalInit { expr, .. }) = local.init {
                 match *expr {
-                    Expr::Macro(mac) => {
-                        assert_eq!(
-                            mac.mac.path.segments.last().unwrap().ident,
-                            "obfuscate_string"
-                        );
+                    Expr::MethodCall(call) => {
+                        assert_eq!(call.method, "into_string");
+                        match *call.receiver {
+                            Expr::Macro(mac) => assert_eq!(
+                                mac.mac.path.segments.last().unwrap().ident,
+                                "obfuscate_string"
+                            ),
+                            _ => panic!("bar receiver must use obfuscate_string!"),
+                        }
                     }
-                    _ => panic!("bar must use obfuscate_string!"),
+                    _ => panic!("bar must convert obfuscate_string! into String"),
                 }
             } else {
                 panic!("bar must have init");
@@ -1916,5 +1920,79 @@ pub fn call() -> u32 {
         let ident_1 = pat_ident_1.ident.to_string();
         let ident_2 = pat_ident_2.ident.to_string();
         assert_eq!(ident_1, ident_2);
+    }
+
+    #[test]
+    fn push_str_literals_are_obfuscated_but_filtered_values_are_preserved() {
+        let src = r#"fn demo(output: &mut String) {
+    output.push_str("secret");
+    output.push_str("x");
+}"#;
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _, _) = super::process_file(
+            &path,
+            &relative_path,
+            &cfg(true, Some(2), None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            out.contains("push_str(obfuscate_str!(\"secret\"))"),
+            "{out}"
+        );
+        assert!(out.contains("push_str(\"x\")"), "{out}");
+    }
+
+    #[test]
+    fn const_string_literals_remain_const_compatible() {
+        let src = "const MESSAGE: &str = \"secret\";\n";
+        let (_dir, path, relative_path) = create_rs_file(src);
+        let (out, _, _) = super::process_file(
+            &path,
+            &relative_path,
+            &cfg(true, None, None, false, None, None),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(out, src);
+    }
+
+    #[test]
+    fn format_parser_handles_escapes_and_rejects_malformed_braces() {
+        let pieces = parse_format_pieces("prefix {{value}}: {}").unwrap();
+        assert_eq!(pieces.len(), 2);
+        assert!(matches!(&pieces[0], FormatPiece::Text(text) if text == "prefix {value}: "));
+        assert!(matches!(&pieces[1], FormatPiece::Placeholder(value) if value == "{}"));
+
+        assert!(parse_format_pieces("missing {close").is_none());
+        assert!(parse_format_pieces("unexpected }").is_none());
+    }
+
+    #[test]
+    fn format_rewrite_respects_positions_lengths_and_ignored_text() {
+        assert!(rewrite_format_literal("prefix {0}", None, &[]).is_none());
+        assert!(rewrite_format_literal("x", Some(2), &[]).is_none());
+        assert!(rewrite_format_literal("ignored", None, &["ignored".to_string()]).is_none());
+
+        let rewrite = rewrite_format_literal("prefix {{ok}} {}", None, &[]).unwrap();
+        assert_eq!(rewrite.format, "{}{}");
+        assert_eq!(rewrite.obfuscated_text, vec!["prefix {ok} "]);
+    }
+
+    #[test]
+    fn helper_functions_cover_zero_and_use_tree_variants() {
+        assert_eq!(to_base36(0), "0");
+        assert_eq!(to_base36(35), "z");
+        assert_eq!(to_base36(36), "10");
+
+        let renamed: syn::UseTree = syn::parse_quote!(source as target);
+        let glob: syn::UseTree = syn::parse_quote!(module::*);
+        assert!(use_tree_contains_ident(&renamed, "target"));
+        assert!(!use_tree_contains_ident(&glob, "target"));
+
+        let wildcard: Pat = syn::parse_quote!(_);
+        assert!(collect_idents_from_pat(&wildcard).is_none());
     }
 }

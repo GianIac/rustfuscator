@@ -19,6 +19,12 @@ struct QualifiedStringFixture {
     standard: std::string::String,
 }
 
+#[cfg(feature = "secure_zeroize")]
+#[derive(Debug, PartialEq, Obfuscate)]
+struct NoDropFixture {
+    enabled: bool,
+}
+
 #[test]
 fn derive_obfuscate_round_trips_supported_scalar_fields() {
     let obfuscated = ObfuscatedScalarFixture::new_clear(
@@ -63,4 +69,11 @@ fn derive_obfuscate_accepts_qualified_string_fields() {
             standard: "qualified".to_string(),
         }
     );
+}
+
+#[cfg(feature = "secure_zeroize")]
+#[test]
+fn secure_zeroize_adds_drop_only_to_obfuscated_storage() {
+    assert!(!std::mem::needs_drop::<NoDropFixture>());
+    assert!(std::mem::needs_drop::<ObfuscatedNoDropFixture>());
 }

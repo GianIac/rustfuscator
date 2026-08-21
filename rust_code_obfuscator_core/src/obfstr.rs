@@ -36,7 +36,6 @@ impl ObfStr {
     }
 }
 
-
 // &str ergonomics
 impl core::ops::Deref for ObfStr {
     type Target = str;
@@ -107,11 +106,57 @@ impl PartialEq<ObfStr> for String {
     }
 }
 
-
 // Conversions
 impl From<ObfStr> for String {
     #[inline]
     fn from(value: ObfStr) -> Self {
         value.into_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hello() -> &'static str {
+        "hello"
+    }
+
+    fn world() -> &'static str {
+        "world"
+    }
+
+    #[test]
+    fn exposes_borrowed_and_owned_values() {
+        let value = ObfStr::new(hello);
+
+        assert_eq!(value.as_str(), "hello");
+        assert_eq!(&*value, "hello");
+        assert_eq!(value.as_ref(), "hello");
+        assert_eq!(value.into_string(), String::from("hello"));
+        assert_eq!(String::from(value), "hello");
+    }
+
+    #[test]
+    fn formats_like_a_string_slice() {
+        let value = ObfStr::new(hello);
+
+        assert_eq!(format!("{value}"), "hello");
+        assert_eq!(format!("{value:?}"), "\"hello\"");
+    }
+
+    #[test]
+    fn supports_symmetric_string_comparisons() {
+        let hello_value = ObfStr::new(hello);
+        let same_value = ObfStr::new(hello);
+        let world_value = ObfStr::new(world);
+        let owned = String::from("hello");
+
+        assert_eq!(hello_value, same_value);
+        assert_ne!(hello_value, world_value);
+        assert_eq!(hello_value, "hello");
+        assert_eq!("hello", hello_value);
+        assert_eq!(hello_value, owned);
+        assert_eq!(String::from("hello"), hello_value);
     }
 }

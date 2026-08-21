@@ -40,3 +40,43 @@ pub struct Cli {
     #[arg(long)]
     pub diff: Option<Option<usize>>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_default_and_explicit_diff_context() {
+        let default_context = Cli::try_parse_from([
+            "obfuscator_cli",
+            "--input",
+            "src",
+            "--output",
+            "out",
+            "--diff",
+        ])
+        .unwrap();
+        assert_eq!(default_context.diff, Some(None));
+
+        let explicit_context = Cli::try_parse_from([
+            "obfuscator_cli",
+            "--input",
+            "src",
+            "--output",
+            "out",
+            "--diff=7",
+        ])
+        .unwrap();
+        assert_eq!(explicit_context.diff, Some(Some(7)));
+    }
+
+    #[test]
+    fn init_does_not_require_output_but_normal_runs_do() {
+        let init = Cli::try_parse_from(["obfuscator_cli", "--input", "project", "--init"]).unwrap();
+        assert!(init.output.is_none());
+        assert!(init.init);
+
+        let missing_output = Cli::try_parse_from(["obfuscator_cli", "--input", "project"]);
+        assert!(missing_output.is_err());
+    }
+}

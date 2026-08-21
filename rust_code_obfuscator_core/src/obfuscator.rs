@@ -2,9 +2,10 @@
 macro_rules! obfuscate_string {
     ($s:literal) => {{
         fn init() -> &'static str {
+            use $crate::__cryptify as cryptify;
             static CELL: ::std::sync::OnceLock<&'static str> = ::std::sync::OnceLock::new();
             *CELL.get_or_init(|| {
-                let decrypted: ::std::string::String = cryptify::encrypt_string!($s);
+                let decrypted: ::std::string::String = $crate::__cryptify::encrypt_string!($s);
                 $crate::obfuscator::__verify_literal_round_trip($s, decrypted.as_str());
                 ::std::boxed::Box::leak(decrypted.into_boxed_str())
             })
@@ -53,9 +54,10 @@ macro_rules! obfuscate_num {
 
 #[macro_export]
 macro_rules! obfuscate_flow {
-    () => {
+    () => {{
+        use $crate::__cryptify as cryptify;
         cryptify::flow_stmt!()
-    };
+    }};
     ($($t:tt)*) => {
         compile_error!("obfuscate_flow! does not accept arguments");
     };

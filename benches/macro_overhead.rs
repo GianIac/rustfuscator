@@ -1,5 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use rust_code_obfuscator::{obfuscate_flow, obfuscate_num, obfuscate_string};
+use std::hint::black_box;
 
 fn baseline_math(input: u64) -> u64 {
     input.wrapping_mul(1_315_423_911).rotate_left(7) ^ 0xa5a5_a5a5_a5a5_a5a5

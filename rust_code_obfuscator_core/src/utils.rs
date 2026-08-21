@@ -1,4 +1,4 @@
-use rand::{rng, Rng};
+use rand::{rng, RngExt};
 
 const MIN_SUFF_VALUE: u32 = 1000;
 const MAX_SUFF_VALUE: u32 = 9999;
@@ -36,8 +36,8 @@ mod tests {
             suf.to_string().len(),
             expected_suff_len,
             "Generated suffix must be {} digits long, received {}",
-            expected_suff_len.to_string(),
-            suf.to_string()
+            expected_suff_len,
+            suf
         );
         assert!(
             (MIN_SUFF_VALUE..=MAX_SUFF_VALUE).contains(&suf),
